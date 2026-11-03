@@ -9,6 +9,8 @@ dist
 unreal-export
 *.tsbuildinfo
 export/
+!packages/project-data/src/export/
+!packages/project-data/src/export/**
 renders-placeholder
 unreal/BairShowroom/*
 !unreal/BairShowroom/BairShowroom.uproject
