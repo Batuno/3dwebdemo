@@ -1,0 +1,15 @@
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.8",
+  "Category": "",
+  "Description": "Photoreal renders for the 3D Bair Songolt showroom",
+  "Plugins": [
+    { "Name": "PythonScriptPlugin", "Enabled": true },
+    { "Name": "EditorScriptingUtilities", "Enabled": true },
+    { "Name": "SequencerScripting", "Enabled": true },
+    { "Name": "MovieRenderPipeline", "Enabled": true },
+    { "Name": "MoviePipelineMaskRenderPass", "Enabled": true },
+    { "Name": "SunPosition", "Enabled": true },
+    { "Name": "Interchange", "Enabled": true }
+  ]
+}

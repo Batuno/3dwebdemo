@@ -1,0 +1,16 @@
+{
+  "day": {
+    "source": "kloofendal_48d_partly_cloudy_puresky",
+    "sunU": 0.5951,
+    "sunV": 0.2338,
+    "elevationDeg": 47.9,
+    "peak": 74608.8
+  },
+  "night": {
+    "source": "kloppenheim_02_puresky",
+    "sunU": 0.599,
+    "sunV": 0.4053,
+    "elevationDeg": 17.1,
+    "peak": 88126.8
+  }
+}

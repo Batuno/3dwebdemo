@@ -1,0 +1,135 @@
+{
+  "note": "Set plantAsset and figureAsset to your own Unreal assets. Empty values use simple stand-in shapes.",
+  "plantAsset": "",
+  "figureAsset": "",
+  "units": {
+    "2RF_T1": {
+      "plants": [
+        [
+          2.9,
+          1.95
+        ],
+        [
+          6.05,
+          0.5
+        ]
+      ],
+      "figures": [
+        {
+          "at": [
+            2.4,
+            2.9
+          ],
+          "heading": 300
+        },
+        {
+          "at": [
+            4.5,
+            6.2
+          ],
+          "heading": 90
+        }
+      ]
+    },
+    "2RF_T2": {
+      "plants": [
+        [
+          0.45,
+          5.85
+        ],
+        [
+          3.55,
+          0.4
+        ],
+        [
+          4.6,
+          3.4
+        ]
+      ],
+      "figures": [
+        {
+          "at": [
+            1.2,
+            5.75
+          ],
+          "heading": 40
+        },
+        {
+          "at": [
+            4.4,
+            7.4
+          ],
+          "heading": 90
+        }
+      ]
+    },
+    "3R": {
+      "plants": [
+        [
+          9.5,
+          4.5
+        ],
+        [
+          0.5,
+          0.5
+        ],
+        [
+          6.25,
+          2.35
+        ]
+      ],
+      "figures": [
+        {
+          "at": [
+            7.4,
+            4.4
+          ],
+          "heading": 20
+        },
+        {
+          "at": [
+            4.7,
+            4.4
+          ],
+          "heading": 270
+        }
+      ]
+    },
+    "4R": {
+      "plants": [
+        [
+          0.5,
+          0.45
+        ],
+        [
+          9.95,
+          0.5
+        ],
+        [
+          6.15,
+          2.4
+        ],
+        [
+          6.95,
+          2.4
+        ]
+      ],
+      "figures": [
+        {
+          "at": [
+            2.6,
+            3.8
+          ],
+          "heading": 320
+        },
+        {
+          "at": [
+            6.7,
+            4.1
+          ],
+          "heading": 90
+        }
+      ]
+    }
+  }
+}

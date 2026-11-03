@@ -1,0 +1,77 @@
+:root {
+  --ink: #1b2024;
+  --soft: #566069;
+  --accent: #0f6b5c;
+  --paper: #f2efe9;
+}
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: 'Manrope Variable', Inter, system-ui, sans-serif;
+  line-height: 1.55;
+}
+main {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 72px 20px 96px;
+}
+h1 {
+  margin: 0 0 16px;
+  font-size: clamp(38px, 7vw, 68px);
+  font-weight: 500;
+  line-height: 1.08;
+}
+h2 {
+  margin: 0 0 16px;
+  font-size: 26px;
+  font-weight: 600;
+}
+.hero p {
+  max-width: 620px;
+  color: var(--soft);
+  font-size: 19px;
+}
+section + section {
+  margin-top: 64px;
+}
+.button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 12px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+form {
+  display: grid;
+  gap: 14px;
+  max-width: 380px;
+}
+label {
+  display: grid;
+  gap: 6px;
+  font-weight: 500;
+}
+input {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #c9c2b6;
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+}
+[role='alert'] {
+  margin: 0;
+  color: #a4342a;
+}
+.direct {
+  margin-top: 20px;
+}

@@ -1,0 +1,30 @@
+{
+  "note": "Point any exported material at your own Unreal material. Empty values keep the imported one.",
+  "materials": {
+    "M_Oak": "",
+    "M_OakFloor": "",
+    "M_Linen": "",
+    "M_Sand": "",
+    "M_Sage": "",
+    "M_SageFabric": "",
+    "M_WarmWhite": "",
+    "M_SageWall": "",
+    "M_Ceiling": "",
+    "M_MatteWhite": "",
+    "M_Quartz": "",
+    "M_StoneTile": "",
+    "M_SageTile": "",
+    "M_KitchenTile": "",
+    "M_BlackMetal": "",
+    "M_Steel": "",
+    "M_Porcelain": "",
+    "M_Mirror": "",
+    "M_Glass": "",
+    "M_CurtainSheer": "",
+    "M_CurtainBlackout": "",
+    "M_WindowFrame": "",
+    "M_Skirting": "",
+    "M_PlanCut": "",
+    "M_PlanOutline": ""
+  }
+}

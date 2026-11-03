@@ -1,0 +1,17 @@
+node_modules
+dist
+.asset-cache
+*.local
+.env
+.env.*
+.DS_Store
+*.zip
+unreal-export
+*.tsbuildinfo
+export/
+renders-placeholder
+unreal/BairShowroom/*
+!unreal/BairShowroom/BairShowroom.uproject
+!unreal/BairShowroom/Config/
+unreal/__pycache__/
+apps/showroom/public/renders/

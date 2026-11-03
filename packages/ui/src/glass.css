@@ -1,0 +1,77 @@
+/* Clean glass: dark scenes by default, bright scenes set data-scene="bright" on an ancestor. */
+:root {
+  --glass-bg: rgba(255, 255, 255, 0.18);
+  --glass-ink: #fff;
+  --glass-border: rgba(255, 255, 255, 0.32);
+}
+[data-scene='bright'] {
+  --glass-bg: rgba(255, 255, 255, 0.65);
+  --glass-ink: #1b2024;
+  --glass-border: rgba(255, 255, 255, 0.7);
+}
+
+.glass-panel,
+.glass-pill {
+  color: var(--glass-ink);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 12px 36px rgba(20, 28, 36, 0.22);
+}
+.glass-panel {
+  border-radius: 20px;
+  padding: 16px 20px 20px;
+}
+.glass-pill {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font: inherit;
+  cursor: pointer;
+}
+.glass-panel-grip {
+  display: none;
+}
+@media (max-width: 767px), (max-height: 480px) {
+  .glass-panel-grip {
+    display: block;
+    width: 44px;
+    height: 18px;
+    margin: -8px auto 2px;
+    touch-action: none;
+    cursor: grab;
+    background: linear-gradient(currentColor, currentColor) center / 40px 4px no-repeat;
+    border-radius: 4px;
+    opacity: 0.4;
+  }
+}
+.glass-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.glass-panel-title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+.glass-icon-btn {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font-size: 20px;
+  cursor: pointer;
+}
+.glass-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .glass-panel,
+  .glass-pill {
+    transition: opacity 0.2s ease;
+  }
+}

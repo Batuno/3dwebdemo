@@ -1,0 +1,22 @@
+{
+  "name": "@bair/project-data",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.5",
+    "vite": "^8.3.5",
+    "@types/suncalc": "^1.9.2"
+  },
+  "dependencies": {
+    "suncalc": "^1.9.0"
+  }
+}
