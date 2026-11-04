@@ -55,6 +55,16 @@ export const IconReset = () => (
     <path d="M4 4v4.5h4.5" />
   </Svg>
 );
+export const IconPlus = () => (
+  <Svg>
+    <path d="M12 5v14M5 12h14" />
+  </Svg>
+);
+export const IconMinus = () => (
+  <Svg>
+    <path d="M5 12h14" />
+  </Svg>
+);
 export const IconLayers = () => (
   <Svg>
     <path d="m12 3 9 5-9 5-9-5 9-5Z" />

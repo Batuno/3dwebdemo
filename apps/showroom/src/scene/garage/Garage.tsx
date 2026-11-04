@@ -10,6 +10,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { BatchSet } from '../blocks/meshBatch';
 import { getBuiltBlock } from '../blocks/Block';
 import { useMaterials } from '../materials';
+import { requestShadowUpdate } from '../lighting/shadowControl';
 
 const STATUS = { available: '#3f9e64', reserved: '#d79a24', sold: '#7d858c' } as const;
 
@@ -123,22 +124,71 @@ function buildShell(l: ReturnType<typeof layoutBays>) {
   return set.toGeometries();
 }
 
-function bayTexture(bay: GarageBay): THREE.CanvasTexture {
+const PLATE_W = 1.5;
+const PLATE_D = 0.75;
+const CELL_W = 128;
+const CELL_H = 64;
+const ATLAS_COLUMNS = 16;
+
+/**
+ * Every bay number in one canvas, and one mesh of quads that each sample their own cell:
+ * a single texture upload and a single draw instead of one per bay.
+ */
+function bayNumbers(l: ReturnType<typeof layoutBays>) {
+  const rows = Math.ceil(l.bays.length / ATLAS_COLUMNS);
   const c = document.createElement('canvas');
-  c.width = 128;
-  c.height = 64;
+  c.width = ATLAS_COLUMNS * CELL_W;
+  c.height = rows * CELL_H;
   const g = c.getContext('2d')!;
   g.fillStyle = 'rgba(255,255,255,0.92)';
   g.font = '700 40px Manrope Variable, sans-serif';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillText(String(bay.number), 64, 34);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
+  const n = l.bays.length;
+  const position = new Float32Array(n * 12);
+  const normal = new Float32Array(n * 12);
+  const uv = new Float32Array(n * 8);
+  const index = new Uint32Array(n * 6);
+  const y = garage.depthY + 0.025;
+  l.bays.forEach((p, i) => {
+    const col = i % ATLAS_COLUMNS;
+    const row = Math.floor(i / ATLAS_COLUMNS);
+    g.fillText(String(p.bay.number), col * CELL_W + CELL_W / 2, row * CELL_H + 34);
+    const u0 = col / ATLAS_COLUMNS;
+    const u1 = (col + 1) / ATLAS_COLUMNS;
+    const vTop = 1 - row / rows;
+    const vBottom = 1 - (row + 1) / rows;
+    // Lying flat, facing up, with the top of the number towards -z (as a plane turned -90° about x).
+    const corners: [number, number, number, number][] = [
+      [-PLATE_W / 2, -PLATE_D / 2, u0, vTop],
+      [PLATE_W / 2, -PLATE_D / 2, u1, vTop],
+      [-PLATE_W / 2, PLATE_D / 2, u0, vBottom],
+      [PLATE_W / 2, PLATE_D / 2, u1, vBottom],
+    ];
+    corners.forEach(([dx, dz, u, v], k) => {
+      position.set([p.x + dx, y, p.z + dz], (i * 4 + k) * 3);
+      normal.set([0, 1, 0], (i * 4 + k) * 3);
+      uv.set([u, v], (i * 4 + k) * 2);
+    });
+    const b = i * 4;
+    index.set([b, b + 2, b + 1, b + 2, b + 3, b + 1], i * 6);
+  });
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(position, 3));
+  geometry.setAttribute('normal', new THREE.BufferAttribute(normal, 3));
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geometry.setIndex(new THREE.BufferAttribute(index, 1));
+  const atlas = new THREE.CanvasTexture(c);
+  atlas.colorSpace = THREE.SRGBColorSpace;
+  atlas.anisotropy = 4;
+  // map + transparent: the Unreal export (exportGltf sitePart) skips bay numbers by exactly this.
+  const material = new THREE.MeshBasicMaterial({ map: atlas, transparent: true, depthWrite: false, toneMapped: false });
+  return { geometry, material, atlas };
 }
 
-function Bays({ l }: { l: ReturnType<typeof layoutBays> }) {
+const noRaycast = () => null;
+
+function Bays({ l, active }: { l: ReturnType<typeof layoutBays>; active: boolean }) {
   const [hover, setHover] = useState<number | null>(null);
   const selected = useAppStore((s) => s.garageSelection);
   const select = useAppStore((s) => s.setGarageSelection);
@@ -180,21 +230,29 @@ function Bays({ l }: { l: ReturnType<typeof layoutBays> }) {
   useEffect(
     () => () => {
       mesh.dispose();
+      (mesh.material as THREE.Material).dispose();
+      mesh.geometry.dispose();
     },
     [mesh],
   );
 
-  const numberPlates = useMemo(
-    () =>
-      l.bays.map((p) => ({
-        p,
-        tex: bayTexture(p.bay),
-      })),
-    [l],
-  );
-  useEffect(() => () => numberPlates.forEach((n) => n.tex.dispose()), [numberPlates]);
+  // While hidden, the bays must not catch the pointer through the ground (raycasts ignore visibility).
+  useEffect(() => {
+    mesh.raycast = active ? THREE.InstancedMesh.prototype.raycast : noRaycast;
+    if (!active) setHover(null);
+  }, [mesh, active]);
 
-  const hovered = hover != null ? l.bays[hover] : null;
+  const plates = useMemo(() => bayNumbers(l), [l]);
+  useEffect(
+    () => () => {
+      plates.geometry.dispose();
+      plates.material.dispose();
+      plates.atlas.dispose();
+    },
+    [plates],
+  );
+
+  const hovered = active && hover != null ? l.bays[hover] : null;
   return (
     <group>
       <primitive
@@ -214,12 +272,7 @@ function Bays({ l }: { l: ReturnType<typeof layoutBays> }) {
           if (e.instanceId !== undefined) select(l.bays[e.instanceId].bay.id);
         }}
       />
-      {numberPlates.map(({ p, tex }) => (
-        <mesh key={p.bay.id} position={[p.x, garage.depthY + 0.025, p.z]} rotation-x={-Math.PI / 2} raycast={() => null}>
-          <planeGeometry args={[1.5, 0.75]} />
-          <meshBasicMaterial map={tex} transparent depthWrite={false} toneMapped={false} />
-        </mesh>
-      ))}
+      <mesh geometry={plates.geometry} material={plates.material} raycast={noRaycast} />
       {hovered && (
         <Html position={[hovered.x, garage.depthY + 1.2, hovered.z]} center zIndexRange={[30, 20]} wrapperClass="scene-label" pointerEvents="none">
           <div className="scene-tip">
@@ -231,7 +284,9 @@ function Bays({ l }: { l: ReturnType<typeof layoutBays> }) {
   );
 }
 
+/** Mounted once (ahead of the first visit, when the page is idle) and kept; shown only in its own view. */
 export default function Garage() {
+  const active = useAppStore((s) => s.route.view === 'garage');
   const lib = useMaterials();
   const l = useMemo(layoutBays, []);
   const geos = useMemo(() => buildShell(l), [l]);
@@ -267,26 +322,34 @@ export default function Garage() {
     },
     [geos],
   );
+  useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats]);
+  const earth = useMemo(() => new THREE.MeshStandardMaterial({ color: '#6e6152', roughness: 1 }), []);
+  useEffect(() => () => earth.dispose(), [earth]);
+  useEffect(() => {
+    requestShadowUpdate();
+  }, [active]);
   return (
-    <group name="Garage">
+    <group name="Garage" visible={active}>
       {geos.map(([k, g]) => (
-        <mesh key={k} geometry={g} material={mats[k]} receiveShadow raycast={() => null} />
+        <mesh key={k} geometry={g} material={mats[k]} receiveShadow raycast={noRaycast} />
       ))}
       {/* Earth around the excavation, so the open site reads as a section through the ground */}
-      <mesh rotation-x={-Math.PI / 2} position-y={garage.depthY - 0.25} raycast={() => null}>
+      <mesh rotation-x={-Math.PI / 2} position-y={garage.depthY - 0.25} material={earth} raycast={noRaycast}>
         <planeGeometry args={[site.plot.halfX * 2 + 8, site.plot.halfZ * 2 + 8]} />
-        <meshStandardMaterial color="#6e6152" roughness={1} />
       </mesh>
-      <Bays l={l} />
-      <hemisphereLight args={['#fff4e3', '#6c6a66', 1.3]} />
-      {lobbies.map((o) => (
-        <Html key={o.id} position={[o.p[0], garage.depthY + 4, o.p[1]]} center zIndexRange={[19, 10]} wrapperClass="scene-label" pointerEvents="none">
-          <span className="amenity-pill">{t.garage.lobby(o.id)}</span>
+      <Bays l={l} active={active} />
+      {/* HTML labels ignore a hidden parent, so they only exist while the garage is on screen. */}
+      {active &&
+        lobbies.map((o) => (
+          <Html key={o.id} position={[o.p[0], garage.depthY + 4, o.p[1]]} center zIndexRange={[19, 10]} wrapperClass="scene-label" pointerEvents="none">
+            <span className="amenity-pill">{t.garage.lobby(o.id)}</span>
+          </Html>
+        ))}
+      {active && (
+        <Html position={[site.garageRamp.position[0], 2, site.garageRamp.position[1]]} center zIndexRange={[19, 10]} wrapperClass="scene-label" pointerEvents="none">
+          <span className="amenity-pill">{t.amenity.garageEntry}</span>
         </Html>
-      ))}
-      <Html position={[site.garageRamp.position[0], 2, site.garageRamp.position[1]]} center zIndexRange={[19, 10]} wrapperClass="scene-label" pointerEvents="none">
-        <span className="amenity-pill">{t.amenity.garageEntry}</span>
-      </Html>
+      )}
     </group>
   );
 }

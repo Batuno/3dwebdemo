@@ -14,6 +14,8 @@ export function AmenityList({ current }: { current: string }) {
       expandLabel={t.panel.expand}
       closeLabel={t.panel.close}
       className="amenity-list pointer-events-auto"
+      sheet
+      tuck="right"
     >
       <ul>
         {outdoorSpots.map((s) => (

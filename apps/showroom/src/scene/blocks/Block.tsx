@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -63,6 +63,11 @@ function makeBoxes(b: BuiltBlock, grow: number, height: number, y = height / 2):
 }
 
 const proxyMaterial = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+
+const reduceMotion = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+/** While a cut is moving, the shadow map re-renders at most this often, in seconds. */
+const SHADOW_INTERVAL = 0.2;
 
 export function Block({ def, detailedGlass }: { def: BlockDef; detailedGlass: boolean }) {
   const lib = useMaterials();
@@ -194,18 +199,33 @@ export function Block({ def, detailedGlass }: { def: BlockDef; detailedGlass: bo
   }, [storeyMeshes, windowMesh, invalidate]);
 
   const open = useAppStore((st) => st.route.view === 'garage');
+  const clip = useRef({ lastShadow: -1, wasGarage: false });
 
-  useFrame((_, dt) => {
+  useFrame((state, dt) => {
+    const { route, hover, selectedStorey } = useAppStore.getState();
     const target = clipTarget(def);
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    const next = reduce ? target : damp(plane.constant, target, 3.2, dt);
-    const moving = Math.abs(next - plane.constant) > 0.01;
-    plane.constant = moving ? next : target;
-    if (moving) requestShadowUpdate();
+    const garage = route.view === 'garage';
+    const c = clip.current;
+    // The garage hides the towers outright, and leaving it brings them back whole, so neither
+    // direction animates the cut. Elsewhere the cut glides, with shadows refreshed a few times a second.
+    const snap = reduceMotion || garage || c.wasGarage;
+    c.wasGarage = garage;
+    const next = snap ? target : damp(plane.constant, target, 3.2, dt);
+    if (Math.abs(next - plane.constant) > 0.01 && !snap) {
+      plane.constant = next;
+      const now = state.clock.elapsedTime;
+      if (now - c.lastShadow >= SHADOW_INTERVAL) {
+        c.lastShadow = now;
+        requestShadowUpdate();
+      }
+    } else if (plane.constant !== target) {
+      // Settled (or snapped): one last shadow refresh at the final height.
+      plane.constant = target;
+      requestShadowUpdate();
+    }
     const lamp = mats.lamp as THREE.MeshStandardMaterial;
     lamp.emissiveIntensity = sceneUniforms.uNight.value * 3;
 
-    const { route, hover, selectedStorey } = useAppStore.getState();
     const lit = route.view === 'block' && route.block === def.id ? (hover.storey ?? selectedStorey) : null;
     (windowMat.userData.uHighlight.value as THREE.Vector2).set(
       lit ? storeyY(lit) : -1000,
@@ -214,7 +234,7 @@ export function Block({ def, detailedGlass }: { def: BlockDef; detailedGlass: bo
   });
 
   return (
-    <group name={`Block_${def.id}`} position={[def.position[0], 0, def.position[1]]}>
+    <group name={`Block_${def.id}`} position={[def.position[0], 0, def.position[1]]} visible={!open}>
       {depthMeshes.map((m, i) => (
         <primitive key={i} object={m} />
       ))}
@@ -332,7 +352,7 @@ const BAND_FRAG = /* glsl */ `
     gl_FragColor = vec4(uColor, a * a * uOpacity);
   }`;
 
-/** Soft glowing band around one storey. */
+/** Soft glowing band around one storey. Glides between storeys and fades its colour, without rebuilding. */
 export function StoreyBand({
   def,
   storey,
@@ -353,8 +373,8 @@ export function StoreyBand({
         vertexShader: BAND_VERT,
         fragmentShader: BAND_FRAG,
         uniforms: {
-          uColor: { value: new THREE.Color(color).multiplyScalar(1.5) },
-          uOpacity: { value: opacity },
+          uColor: { value: new THREE.Color() },
+          uOpacity: { value: 0 },
           uHalf: { value: height / 2 },
         },
         transparent: true,
@@ -363,7 +383,7 @@ export function StoreyBand({
         toneMapped: false,
         fog: false,
       }),
-    [color, opacity, height],
+    [height],
   );
   useEffect(
     () => () => {
@@ -372,11 +392,36 @@ export function StoreyBand({
     },
     [geo, mat],
   );
+  const want = useRef({ color: new THREE.Color(), opacity, y: 0, fresh: true });
+  want.current.color.set(color).multiplyScalar(1.5);
+  want.current.opacity = opacity;
+  want.current.y = storeyY(storey) + STOREY_H / 2;
+  const mesh = useRef<THREE.Mesh>(null);
+  useFrame((_, dt) => {
+    const m = mesh.current;
+    if (!m) return;
+    const w = want.current;
+    const u = mat.uniforms;
+    if (reduceMotion || w.fresh) {
+      // Starts on its storey in its own colour, and only the opacity fades in.
+      m.position.y = w.y;
+      (u.uColor.value as THREE.Color).copy(w.color);
+      w.fresh = false;
+    }
+    if (reduceMotion) {
+      u.uOpacity.value = w.opacity;
+      return;
+    }
+    u.uOpacity.value = damp(u.uOpacity.value as number, w.opacity, 9, dt);
+    (u.uColor.value as THREE.Color).lerp(w.color, 1 - Math.exp(-9 * dt));
+    m.position.y = damp(m.position.y, w.y, 16, dt);
+  });
   return (
     <mesh
+      ref={mesh}
       geometry={geo}
       material={mat}
-      position={[def.position[0], storeyY(storey) + STOREY_H / 2, def.position[1]]}
+      position={[def.position[0], 0, def.position[1]]}
       raycast={() => null}
       renderOrder={7}
     />

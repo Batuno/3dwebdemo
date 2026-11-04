@@ -78,8 +78,8 @@ function commitAll(prefix = 'sync') {
   if (!files.length) return false;
   const names = files.slice(0, 3).map((f) => path.basename(f)).join(', ');
   const more = files.length > 3 ? ` +${files.length - 3}` : '';
-  // Let GitHub Actions run so Pages can redeploy after synced edits.
-  const ok = git('commit', '-q', '-m', `${prefix}(${HOST}): ${names}${more}`).ok;
+  // [skip ci]: a sync every minute would use up the private repository's free Actions minutes.
+  const ok = git('commit', '-q', '-m', `${prefix}(${HOST}): ${names}${more} [skip ci]`).ok;
   if (ok) log(`committed ${files.length} file(s): ${names}${more}`);
   return ok;
 }
@@ -187,7 +187,7 @@ function back(target, prefix) {
   if (!git('read-tree', '--reset', '-u', hash.out).ok) return console.error('Could not restore the files.');
   git('add', '-A');
   if (git('diff', '--cached', '--quiet').ok) return console.log('Already at that state.');
-  git('commit', '-q', '-m', `${prefix}: back to ${hash.out} (${subject})`);
+  git('commit', '-q', '-m', `${prefix}: back to ${hash.out} (${subject}) [skip ci]`);
   log(`went back to ${hash.out}: ${subject}`);
   syncOnce(false);
 }

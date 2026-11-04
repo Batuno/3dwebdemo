@@ -1,5 +1,5 @@
 // Sun, sky, fog and image-based light, all driven by the time-of-day slider through the real sun position.
-import { useEffect, useMemo, useRef } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useLoader, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
@@ -8,6 +8,7 @@ import type { Route } from '../../lib/routing';
 import { useAppStore } from '../../store/useAppStore';
 import { assetUrl, sceneUniforms, SUN_DIR } from '../shared';
 import { consumeShadowUpdate, requestShadowUpdate } from './shadowControl';
+import { tiered } from '../assetTier';
 
 // Where each HDRI's sun sits (u along the panorama), written by scripts/fetch-assets.mjs.
 const DAY_SUN_U = 0.5951;
@@ -15,6 +16,20 @@ const NIGHT_SUN_U = 0.599;
 
 const MOON_DIR = new THREE.Vector3(-0.42, 0.82, 0.38).normalize();
 const DAY_FILL = new THREE.Color('#f6f0e6');
+const HEMI_GROUND = new THREE.Color('#a89a82');
+// Fill for the open garage, added to the sky light instead of mounting a light of its own:
+// a light count change would recompile every material in the scene.
+const GARAGE_SKY = new THREE.Color('#fff4e3').multiplyScalar(1.3);
+const GARAGE_GROUND = new THREE.Color('#6c6a66').multiplyScalar(1.3);
+
+const reduceMotion = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+/** Bigger jumps than this, in minutes, cut straight to the new time instead of sweeping across the day. */
+const GLIDE_LIMIT = 6 * 60;
+
+// Phones get half-size image lights (see assetTier). Both maps must stay the same size: the prefiltered
+// map's size is part of every material's shader, so a mismatch would recompile them all on the swap.
+const DAY_HDR = tiered('hdri/day.hdr');
+const NIGHT_HDR = tiered('hdri/night.hdr');
 
 const SKY_VERT = /* glsl */ `
   varying vec3 vDir;
@@ -128,24 +143,64 @@ const sunLocation = {
   timeZone: projectConfig.timeZone,
 };
 
+function prefilter(gl: THREE.WebGLRenderer, hdr: THREE.Texture): THREE.Texture {
+  const pmrem = new THREE.PMREMGenerator(gl);
+  hdr.mapping = THREE.EquirectangularReflectionMapping;
+  const env = pmrem.fromEquirectangular(hdr).texture;
+  pmrem.dispose();
+  return env;
+}
+
+/** The image light the opening time doesn't need, loaded once it is needed or the page is idle. */
+function LateEnv({ url, onReady }: { url: string; onReady: (env: THREE.Texture) => void }) {
+  const gl = useThree((s) => s.gl);
+  const hdr = useLoader(HDRLoader, url);
+  useEffect(() => onReady(prefilter(gl, hdr)), [gl, hdr, onReady]);
+  return null;
+}
+
+const altitudeAt = (minutes: number) => sunAt(minutes, sunLocation, new Date()).altitude;
+/** The night image light takes over below this sun altitude, in degrees. */
+const NIGHT_ENV_BELOW = -4;
+
 export function Lighting({ shadowSize, softShadows }: { shadowSize: number; softShadows: boolean }) {
   const { gl, scene } = useThree();
   const sunRef = useRef<THREE.DirectionalLight>(null);
   const hemiRef = useRef<THREE.HemisphereLight>(null);
-  const envIsNight = useRef(false);
 
-  const [dayHdr, nightHdr] = useLoader(HDRLoader, [assetUrl('hdri/day.hdr'), assetUrl('hdri/night.hdr')]);
+  // The first frame only needs the image light for the opening time (the default dusk start is the
+  // night one); the other loads later. Around twilight, both.
+  const start = useMemo(() => {
+    const alt = altitudeAt(useAppStore.getState().time);
+    return { day: alt > NIGHT_ENV_BELOW - 3, night: alt < NIGHT_ENV_BELOW + 5 };
+  }, []);
+  const hdrs = useLoader(HDRLoader, [...(start.day ? [assetUrl(DAY_HDR)] : []), ...(start.night ? [assetUrl(NIGHT_HDR)] : [])]);
   const dayTex = useLoader(THREE.TextureLoader, assetUrl('hdri/sky_day.webp'));
 
   const envs = useMemo(() => {
-    const pmrem = new THREE.PMREMGenerator(gl);
-    dayHdr.mapping = THREE.EquirectangularReflectionMapping;
-    nightHdr.mapping = THREE.EquirectangularReflectionMapping;
-    const day = pmrem.fromEquirectangular(dayHdr).texture;
-    const night = pmrem.fromEquirectangular(nightHdr).texture;
-    pmrem.dispose();
+    const day = start.day ? prefilter(gl, hdrs[0]) : null;
+    const night = start.night ? prefilter(gl, hdrs[start.day ? 1 : 0]) : null;
     return { day, night };
-  }, [gl, dayHdr, nightHdr]);
+  }, [gl, hdrs, start]);
+  const dayEnv = useRef<THREE.Texture | null>(null);
+  const nightEnv = useRef<THREE.Texture | null>(null);
+  dayEnv.current ??= envs.day;
+  nightEnv.current ??= envs.night;
+  const lateUrl = envs.day && envs.night ? null : assetUrl(envs.day ? NIGHT_HDR : DAY_HDR);
+  const [wantLate, setWantLate] = useState(false);
+  const sceneReady = useAppStore((s) => s.sceneReady);
+  useEffect(() => {
+    if (!sceneReady || !lateUrl) return undefined;
+    const id = setTimeout(() => setWantLate(true), 4000);
+    return () => clearTimeout(id);
+  }, [sceneReady, lateUrl]);
+  const onLate = useMemo(
+    () => (env: THREE.Texture) => {
+      if (envs.day) nightEnv.current = env;
+      else dayEnv.current = env;
+    },
+    [envs],
+  );
 
   const skyUniforms = useMemo(() => {
     dayTex.colorSpace = THREE.NoColorSpace; // decoded by hand in the shader
@@ -168,7 +223,7 @@ export function Lighting({ shadowSize, softShadows }: { shadowSize: number; soft
   }, [dayTex]);
 
   useEffect(() => {
-    scene.environment = envs.day;
+    scene.environment = envs.day ?? envs.night;
     scene.fog = new THREE.FogExp2('#d3dde4', 0.00052);
     gl.shadowMap.autoUpdate = false;
     gl.shadowMap.needsUpdate = true;
@@ -223,25 +278,34 @@ export function Lighting({ shadowSize, softShadows }: { shadowSize: number; soft
 
   const today = useMemo(() => new Date(), []);
   const scratch = useMemo(() => new THREE.Color(), []);
+  const garageMix = useRef(useAppStore.getState().route.view === 'garage' ? 1 : 0);
+  // The light follows the slider with a short glide, so a drag never snaps the sun and sky.
+  const displayTime = useRef(useAppStore.getState().time);
 
   useFrame((state, dt) => {
     const store = useAppStore.getState();
     if (store.playing) store.advanceTime(dt);
 
-    const s = sunAt(store.time, sunLocation, today);
+    const gap = store.time - displayTime.current;
+    const snapTime = reduceMotion || store.playing || Math.abs(gap) > GLIDE_LIMIT;
+    displayTime.current = snapTime ? store.time : THREE.MathUtils.damp(displayTime.current, store.time, 3, dt);
+    if (Math.abs(store.time - displayTime.current) < 0.05) displayTime.current = store.time;
+    const gliding = displayTime.current !== store.time;
+
+    const s = sunAt(displayTime.current, sunLocation, today);
     const [dx, dy, dz] = sunDirection(s, site.northOffsetDeg);
     SUN_DIR.set(dx, dy, dz);
     const alt = s.altitude;
 
     // Artificial lights: windows from about an hour before sunset, full by the end of blue hour.
-    const night = store.time < 12 * 60 ? 1 - smooth(alt, -6, 3) : 1 - smooth(alt, -5, 12);
+    const night = displayTime.current < 12 * 60 ? 1 - smooth(alt, -6, 3) : 1 - smooth(alt, -5, 12);
     sceneUniforms.uNight.value = night;
     sceneUniforms.uTime.value = state.clock.elapsedTime;
 
     const sunUp = alt > -1;
     lightDir.copy(sunUp ? SUN_DIR : MOON_DIR);
     // Low suns barely move the picture, so shadows re-render only after a visible change.
-    const threshold = store.playing ? 0.03 : 0.004;
+    const threshold = store.playing || gliding ? 0.03 : 0.004;
     if (lightDir.distanceTo(shadowDir.current) > threshold) placeLight();
 
     const sun = sunRef.current;
@@ -254,19 +318,31 @@ export function Lighting({ shadowSize, softShadows }: { shadowSize: number; soft
         sun.color.set('#8ea6d8');
       }
     }
-    if (hemiRef.current) {
+    const hemi = hemiRef.current;
+    if (hemi) {
       // By day, a strong neutral fill keeps walls their own colour when the sun moves off them.
-      hemiRef.current.intensity = THREE.MathUtils.lerp(0.09, 0.95, smooth(alt, -8, 18));
-      hemiRef.current.color.copy(skyColor('zenith', alt, scratch)).lerp(DAY_FILL, smooth(alt, 0, 22));
+      hemi.intensity = THREE.MathUtils.lerp(0.09, 0.95, smooth(alt, -8, 18));
+      hemi.color.copy(skyColor('zenith', alt, scratch)).lerp(DAY_FILL, smooth(alt, 0, 22));
+      hemi.groundColor.copy(HEMI_GROUND);
+      const inGarage = store.route.view === 'garage' ? 1 : 0;
+      garageMix.current = reduceMotion ? inGarage : THREE.MathUtils.damp(garageMix.current, inGarage, 4, dt);
+      if (Math.abs(garageMix.current - inGarage) < 0.002) garageMix.current = inGarage;
+      const g = garageMix.current;
+      if (g > 0) {
+        // Same light as the day fill plus the garage fill, folded into one hemisphere light.
+        hemi.color.multiplyScalar(hemi.intensity).add(scratch.copy(GARAGE_SKY).multiplyScalar(g));
+        hemi.groundColor.multiplyScalar(hemi.intensity).add(scratch.copy(GARAGE_GROUND).multiplyScalar(g));
+        hemi.intensity = 1;
+      }
     }
 
     // Image-based light: swap to the night map where it is dimmest.
-    const nowNightEnv = alt < -4;
-    if (nowNightEnv !== envIsNight.current) {
-      envIsNight.current = nowNightEnv;
-      scene.environment = nowNightEnv ? envs.night : envs.day;
-    }
-    const envU = nowNightEnv ? NIGHT_SUN_U : DAY_SUN_U;
+    // Fetch the missing map as the sun approaches its range, if idle time hasn't already.
+    if (lateUrl && !wantLate && (envs.day ? alt < NIGHT_ENV_BELOW + 6 : alt > NIGHT_ENV_BELOW - 4)) setWantLate(true);
+    const nowNightEnv = alt < NIGHT_ENV_BELOW;
+    const env = nowNightEnv ? (nightEnv.current ?? dayEnv.current) : (dayEnv.current ?? nightEnv.current);
+    if (scene.environment !== env) scene.environment = env;
+    const envU = env === nightEnv.current ? NIGHT_SUN_U : DAY_SUN_U;
     const lightAngle = Math.atan2(SUN_DIR.z, SUN_DIR.x);
     const rotation = (envU - 0.5) * Math.PI * 2 - lightAngle;
     scene.environmentRotation.set(0, rotation, 0);
@@ -285,8 +361,10 @@ export function Lighting({ shadowSize, softShadows }: { shadowSize: number; soft
     if (scene.fog) (scene.fog as THREE.FogExp2).color.copy(skyUniforms.uFog.value);
 
     // Glass panels follow the scene: light text over dark skies, dark text over bright ones.
+    // The floor plan's backdrop is light paper at any hour, so it counts as bright too.
     const standing = store.route.view === 'unit' && store.route.spot !== undefined && !isWindowSpot(store.route);
-    const mood = alt > 12 || standing ? 'bright' : 'dark';
+    const plan = store.route.view === 'unit' && store.planMode;
+    const mood = alt > 12 || standing || plan ? 'bright' : 'dark';
     if (document.body.dataset.scene !== mood) document.body.dataset.scene = mood;
 
     if (consumeShadowUpdate()) gl.shadowMap.needsUpdate = true;
@@ -303,6 +381,11 @@ export function Lighting({ shadowSize, softShadows }: { shadowSize: number; soft
         shadow-radius={softShadows ? 3.5 : 1.5}
       />
       <hemisphereLight ref={hemiRef} args={['#e8ecf0', '#a89a82', 0.42]} />
+      {wantLate && lateUrl && (
+        <Suspense fallback={null}>
+          <LateEnv url={lateUrl} onReady={onLate} />
+        </Suspense>
+      )}
       <mesh scale={3800} frustumCulled={false} raycast={() => null} renderOrder={-10}>
         <sphereGeometry args={[1, 48, 32]} />
         <shaderMaterial vertexShader={SKY_VERT} fragmentShader={SKY_FRAG} uniforms={skyUniforms} side={THREE.BackSide} depthWrite={false} fog={false} />

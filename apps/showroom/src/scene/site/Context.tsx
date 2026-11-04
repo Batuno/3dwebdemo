@@ -71,7 +71,7 @@ function makeContextMaterial(): THREE.MeshStandardMaterial {
   return m;
 }
 
-interface Tower {
+export interface Tower {
   x: number;
   z: number;
   w: number;
@@ -141,9 +141,19 @@ function placeTowers(): Tower[] {
   return list;
 }
 
+let towers: Tower[] | null = null;
+
+/** The generated neighbours (none when a real context model replaces them). Also keeps the camera out of them. */
+export function contextTowers(): readonly Tower[] {
+  if (projectConfig.context.url) return [];
+  towers ??= placeTowers();
+  return towers;
+}
+
 export function ContextBuildings() {
   useMaterials();
-  const towers = useMemo(placeTowers, []);
+  // The generated list is used even if a context model was configured but failed to load.
+  const towers = useMemo(() => (projectConfig.context.url ? placeTowers() : contextTowers()), []);
   const mat = useMemo(makeContextMaterial, []);
   const mesh = useMemo(() => {
     const geo = new THREE.BoxGeometry(1, 1, 1);

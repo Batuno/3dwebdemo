@@ -351,7 +351,7 @@ export async function sitePart(save: Saver) {
     return null;
   });
 
-  // The garage only exists while its view is open.
+  // The garage is built in idle time or on its first visit, and only shows in its own view.
   useAppStore.setState({ route: { view: 'garage' } });
   let garage: THREE.Object3D | undefined;
   for (let i = 0; i < 40 && !garage; i++) {
@@ -412,6 +412,10 @@ function litWindows(group: THREE.Object3D, id: string, storeys: number): THREE.M
 }
 
 export async function blockPart(id: string, save: Saver) {
+  // Towers are hidden in the garage view, where sitePart leaves the scene, and collect() skips hidden
+  // objects. Back to the overview first, and give the scene a couple of frames to show them again.
+  useAppStore.setState({ route: { view: 'overview' } });
+  await wait(300);
   const def = blockById(id);
   const group = win.__scene.getObjectByName(`Block_${id}`);
   if (!def || !group) throw new Error(`No block ${id}`);

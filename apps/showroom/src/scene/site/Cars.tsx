@@ -5,6 +5,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { site } from '@bair/project-data';
 import { mulberry32 } from '@bair/project-data';
 import { sceneUniforms } from '../shared';
+import { useAppStore } from '../../store/useAppStore';
 import { eastX0, eastX1, northZ0, northZ1, southZ0, southZ1, westX0, westX1 } from './Ground';
 
 // A saloon built from a lofted side profile: x = length, y = height, extruded across the width.
@@ -204,6 +205,8 @@ export function Cars({ moving = 18 }: { moving?: number }) {
 
   const obj = useMemo(() => new THREE.Object3D(), []);
   useFrame((_, dt) => {
+    // Hidden while the garage is open: nothing to move.
+    if (useAppStore.getState().route.view === 'garage') return;
     const step = Math.min(dt, 0.1);
     cars.forEach((car, i) => {
       car.pos += car.dir * car.speed * step;

@@ -4,10 +4,12 @@ import { useFrame, useThree } from '@react-three/fiber';
 import CameraControlsImpl from 'camera-controls';
 import * as THREE from 'three';
 import { blockById, cameras, garage, headingOnPlan, interiors, outdoorPose, outdoorSpotById, roofY, spotPose, storeyY, unitXform, type SpotPose } from '@bair/project-data';
+import { usePanelOpen } from '@bair/ui';
 import { useAppStore } from '../../store/useAppStore';
 import type { Route } from '../../lib/routing';
 import { getGroundCollider, getOccluders } from '../labels/occluders';
 import { povState } from '../unit/povState';
+import { farthestAllowed, MIN_CAMERA_Y, SITE_RADIUS } from './limits';
 
 export interface Shot {
   pos: [number, number, number];
@@ -21,7 +23,7 @@ export interface Shot {
 
 const rad = THREE.MathUtils.degToRad;
 
-const INTRO_SECONDS = 2.6;
+const INTRO_SECONDS = 3.4;
 const INTRO_PULL_BACK = 0.14;
 /** The loading screen takes this long to fade after the scene is ready. */
 const INTRO_DELAY = 1.1;
@@ -117,7 +119,69 @@ function poseFor(route: Route): SpotPose | null {
   return h ? spotPose(def, st, route.storey, h) : null;
 }
 
-const easeOut = (t: number) => 1 - (1 - t) ** 3;
+const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+
+/** Camera smoothing, in seconds: a calm glide between views, and a quick answer to the viewer's hand. */
+const ROUTE_SMOOTH = 0.85;
+const USER_SMOOTH = 0.42;
+const DRAG_SMOOTH = 0.14;
+/** How fast the lens eases to a new view's field of view. */
+const FOV_RATE = 4;
+
+/** Where the orbit target may wander in the open views: the site and its streets, short of the neighbours. */
+const OPEN_BOUNDARY = new THREE.Box3(new THREE.Vector3(-100, 0, -85), new THREE.Vector3(100, 95, 85));
+
+/** The panel that holds each view's information. While it is hidden, the subject is framed in the middle. */
+function panelFor(route: Route): string | null {
+  switch (route.view) {
+    case 'block':
+      return 'floor-select';
+    case 'floor':
+      return 'floor-units';
+    case 'unit':
+      return route.spot ? null : 'unit';
+    case 'garage':
+      return 'garage';
+    default:
+      return null;
+  }
+}
+
+/** On phones, the folded sheet, its dock and the navigation still cover this much of the bottom, in px. */
+const PHONE_FOLDED_COVER = 200;
+const PHONE_TOP_COVER = 60;
+
+interface Framing {
+  shot: Shot;
+  pos: THREE.Vector3;
+  target: THREE.Vector3;
+  fit: number;
+  aspect: number;
+}
+
+/** The shot for a route, pulled back on narrow screens so the buildings still fit. */
+function framing(route: Route, width: number, height: number): Framing {
+  const shot = shotFor(route);
+  const aspect = width / Math.max(1, height);
+  const fit = aspect < 1 ? THREE.MathUtils.clamp(0.95 / aspect, 1, 2.3) : 1;
+  const target = new THREE.Vector3(...shot.target);
+  const pos = new THREE.Vector3(...shot.pos).sub(target).multiplyScalar(fit).add(target);
+  return { shot, pos, target, fit, aspect };
+}
+
+/** Focal offset that keeps the subject clear of the view's panel, or centred while the panel is hidden. */
+function focalOffset(route: Route, f: Framing, width: number, height: number, panelOpen: boolean): [number, number] {
+  const span = 2 * f.pos.distanceTo(f.target) * Math.tan(rad(f.shot.fov / 2)) * f.aspect;
+  if (width >= 768) {
+    if (!panelOpen) return [0, 0];
+    const shift = route.view === 'floor' ? -0.1 : route.view === 'unit' || route.view === 'garage' ? 0.11 : route.view === 'block' ? 0.17 : 0;
+    return [shift * span, 0];
+  }
+  // On phones the sheet covers the bottom instead, so lift the subject into the space above it.
+  if (route.view === 'overview' || route.view === 'block') return [0, 0];
+  const worldPerPx = span / f.aspect / Math.max(1, height);
+  return [0, panelOpen ? 0.2 * (span / f.aspect) : Math.max(0, (PHONE_FOLDED_COVER - PHONE_TOP_COVER) / 2) * worldPerPx];
+}
 
 // Zooming the overview out tilts it from the low hero angle up to the elevated 3/4 view.
 const heroDistance = new THREE.Vector3(...cameras.opening.pos).distanceTo(new THREE.Vector3(...cameras.opening.target));
@@ -143,14 +207,39 @@ export function CameraRig() {
   const lastZoom = useRef(0);
   const lastDistance = useRef(0);
   const wasInside = useRef(false);
+  /** The lens the current view wants; the camera eases towards it. */
+  const targetFov = useRef(camera.fov);
+  /** True while standing at a hotspot, where the viewer's wheel owns the lens. */
+  const standing = useRef(false);
+  /** A glide between views is under way: limits wait until it lands, and smoothing is slow. */
+  const routeMove = useRef(0);
+  const moving = useRef(false);
+  /** The circle and floor for the current view, and its own zoom-out limit. */
+  const limit = useRef<{ radius: number; ground: number | null; maxDistance: number } | null>(null);
+  const panelOpen = usePanelOpen(panelFor(route)) ?? true;
+  const panelOpenRef = useRef(panelOpen);
+  panelOpenRef.current = panelOpen;
+
+  const beginGlide = (c: CameraControlsImpl) => {
+    c.smoothTime = ROUTE_SMOOTH;
+    moving.current = true;
+    return ++routeMove.current;
+  };
 
   useEffect(() => {
     const c = ref.current;
     if (!c) return;
+    const endGlide = () => {
+      c.smoothTime = USER_SMOOTH;
+      moving.current = false;
+    };
     const cancelIntro = () => {
       intro.current = null;
+      // The viewer's hand always gets the quick response, even mid-glide.
+      endGlide();
     };
     c.addEventListener('controlstart', cancelIntro);
+    c.addEventListener('rest', endGlide);
     const el = gl.domElement;
     const markZoom = (e?: Event) => {
       lastZoom.current = performance.now();
@@ -167,6 +256,7 @@ export function CameraRig() {
     el.addEventListener('touchmove', onTouch, { passive: true });
     return () => {
       c.removeEventListener('controlstart', cancelIntro);
+      c.removeEventListener('rest', endGlide);
       el.removeEventListener('wheel', markZoom);
       el.removeEventListener('touchmove', onTouch);
     };
@@ -221,8 +311,20 @@ export function CameraRig() {
     const c = ref.current;
     if (!c || !flyTarget) return;
     intro.current = null;
-    c.moveTo(flyTarget.pos[0], flyTarget.pos[1], flyTarget.pos[2], !reduce);
-    c.dollyTo(Math.max(c.minDistance, c.distance * 0.62), !reduce);
+    if (reduce) {
+      c.moveTo(flyTarget.pos[0], flyTarget.pos[1], flyTarget.pos[2], false);
+      c.dollyTo(Math.max(c.minDistance, c.distance * 0.62), false);
+      return;
+    }
+    const id = beginGlide(c);
+    void Promise.all([
+      c.moveTo(flyTarget.pos[0], flyTarget.pos[1], flyTarget.pos[2], true),
+      c.dollyTo(Math.max(c.minDistance, c.distance * 0.62), true),
+    ]).then(() => {
+      if (id !== routeMove.current) return;
+      c.smoothTime = USER_SMOOTH;
+      moving.current = false;
+    });
   }, [flyTarget, reduce]);
 
   useEffect(() => {
@@ -238,6 +340,9 @@ export function CameraRig() {
     const animate = !reduce && !first && !cover;
     firstRun.current = false;
 
+    standing.current = pose !== null;
+    limit.current = null;
+
     const standAt = (p: SpotPose) => {
       c.colliderMeshes = [];
       c.setBoundary();
@@ -251,7 +356,10 @@ export function CameraRig() {
       c.mouseButtons.middle = CameraControlsImpl.ACTION.NONE;
       c.mouseButtons.wheel = CameraControlsImpl.ACTION.NONE;
       c.touches.two = CameraControlsImpl.ACTION.NONE;
+      c.smoothTime = USER_SMOOTH;
+      moving.current = false;
       camera.fov = p.fov;
+      targetFov.current = p.fov;
       camera.near = 0.08;
       camera.far = 5000;
       camera.updateProjectionMatrix();
@@ -285,37 +393,41 @@ export function CameraRig() {
       setTimeout(() => store.setPovFade(false), POV_FADE_MS);
     }
 
-    const shot = shotFor(route);
-    // Narrow screens need to pull back so the buildings still fit.
-    const aspect = size.width / Math.max(1, size.height);
-    const fit = aspect < 1 ? THREE.MathUtils.clamp(0.95 / aspect, 1, 2.3) : 1;
-    const [tx, ty, tz] = shot.target;
-    const px = tx + (shot.pos[0] - tx) * fit;
-    const py = ty + (shot.pos[1] - ty) * fit;
-    const pz = tz + (shot.pos[2] - tz) * fit;
+    const f = framing(route, size.width, size.height);
+    const { shot, fit } = f;
+    const { x: px, y: py, z: pz } = f.pos;
+    const { x: tx, y: ty, z: tz } = f.target;
 
     c.minPolarAngle = shot.minPolar;
     c.maxPolarAngle = shot.maxPolar;
     c.minDistance = shot.minDistance * Math.min(fit, 1.3);
     c.maxDistance = shot.maxDistance * fit;
-    camera.fov = shot.fov;
+    // The lens eases to the new view's field of view in step with the glide; cuts change it at once.
+    targetFov.current = shot.fov;
+    if (!animate) camera.fov = shot.fov;
     camera.near = route.view === 'unit' ? 0.5 : 1;
     camera.updateProjectionMatrix();
 
     const open = route.view === 'overview' || route.view === 'block';
     // Outside views may not enter a building or go below ground, or wander off the site.
     c.colliderMeshes = open ? [getGroundCollider()] : [];
-    if (open) c.setBoundary(new THREE.Box3(new THREE.Vector3(-170, 0, -170), new THREE.Vector3(170, 95, 170)));
+    if (open) c.setBoundary(OPEN_BOUNDARY);
     else c.setBoundary();
     c.dollyToCursor = route.view === 'overview' || route.view === 'floor';
+    // A circle around the site that zooming out stops at, wide enough for this view's own shot.
+    limit.current = {
+      radius: Math.max(SITE_RADIUS, Math.hypot(px, pz) + 30),
+      ground: route.view === 'garage' ? null : MIN_CAMERA_Y,
+      maxDistance: c.maxDistance,
+    };
 
-    // Keep the subject clear of the side panel on wide screens.
-    const span = 2 * Math.hypot(px - tx, py - ty, pz - tz) * Math.tan(rad(shot.fov / 2)) * aspect;
-    const wide = size.width >= 768;
-    const shift = !wide ? 0 : route.view === 'floor' ? -0.1 : route.view === 'unit' || route.view === 'garage' ? 0.11 : route.view === 'block' ? 0.17 : 0;
-    // On phones the sheet covers the bottom instead, so lift the subject.
-    const lift = wide || route.view === 'overview' || route.view === 'block' ? 0 : 0.2 * (span / aspect);
-    c.setFocalOffset(shift * span, lift, 0, animate);
+    const glide = animate ? beginGlide(c) : 0;
+    if (!animate) {
+      c.smoothTime = USER_SMOOTH;
+      moving.current = false;
+    }
+    const [ox, oy] = focalOffset(route, f, size.width, size.height, panelOpenRef.current);
+    const moves: Promise<void>[] = [c.setFocalOffset(ox, oy, 0, animate)];
 
     if (first && route.view === 'overview' && !reduce) {
       const to = new THREE.Vector3(px, py, pz);
@@ -325,18 +437,51 @@ export function CameraRig() {
       intro.current = { t: 0, wait: INTRO_DELAY, from, to, target };
     } else {
       intro.current = null;
-      c.setLookAt(px, py, pz, tx, ty, tz, animate);
+      moves.push(c.setLookAt(px, py, pz, tx, ty, tz, animate));
+    }
+    if (glide) {
+      void Promise.all(moves).then(() => {
+        if (glide !== routeMove.current) return;
+        c.smoothTime = USER_SMOOTH;
+        moving.current = false;
+      });
     }
     lastDistance.current = 0;
     return undefined;
   }, [route, resetTick, camera, reduce, size.width, size.height]);
 
+  // Hiding or showing the view's panel re-frames the subject: centred while the panel is away.
+  const framedOnce = useRef(false);
+  useEffect(() => {
+    const c = ref.current;
+    if (!framedOnce.current) {
+      framedOnce.current = true;
+      return;
+    }
+    if (!c || poseFor(route)) return;
+    const f = framing(route, size.width, size.height);
+    const [ox, oy] = focalOffset(route, f, size.width, size.height, panelOpen);
+    void c.setFocalOffset(ox, oy, 0, !reduce);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panelOpen]);
+
   const step = useMemo(() => new THREE.Vector3(), []);
   const local = useMemo(() => new THREE.Vector3(), []);
   const lookDir = useMemo(() => new THREE.Vector3(), []);
+  const orbitTarget = useMemo(() => new THREE.Vector3(), []);
+  const orbitPos = useMemo(() => new THREE.Vector3(), []);
   useFrame((_, dt) => {
     const c = ref.current;
     if (!c) return;
+    // Ease the lens; standing at a hotspot, the viewer's wheel sets it directly.
+    if (!standing.current) {
+      const want = targetFov.current;
+      if (Math.abs(camera.fov - want) > 0.01) {
+        camera.fov = reduce ? want : THREE.MathUtils.damp(camera.fov, want, FOV_RATE, dt);
+        if (Math.abs(camera.fov - want) <= 0.01) camera.fov = want;
+        camera.updateProjectionMatrix();
+      }
+    }
     const now = useAppStore.getState().route;
     if (now.view === 'unit' && now.spot) {
       const def = blockById(now.block)!;
@@ -355,10 +500,24 @@ export function CameraRig() {
         return;
       }
       run.t = Math.min(1, run.t + frame / INTRO_SECONDS);
-      step.lerpVectors(run.from, run.to, easeOut(run.t));
+      step.lerpVectors(run.from, run.to, easeInOut(run.t));
       c.setLookAt(step.x, step.y, step.z, run.target.x, run.target.y, run.target.z, false);
       if (run.t >= 1) intro.current = null;
       return;
+    }
+    // Stay inside the site circle, above ground and out of the neighbouring buildings. A zoom-out stops
+    // at the wall (maxDistance), and turning the view towards a building draws the camera in front of it.
+    const lim = limit.current;
+    if (lim && !moving.current) {
+      c.getTarget(orbitTarget, false);
+      c.getPosition(orbitPos, false);
+      const d = orbitPos.distanceTo(orbitTarget);
+      if (d > 1e-3) {
+        const dir = orbitPos.sub(orbitTarget).divideScalar(d);
+        const far = farthestAllowed(orbitTarget, dir, lim.radius, lim.ground);
+        c.maxDistance = THREE.MathUtils.clamp(far, c.minDistance, lim.maxDistance);
+        if (d > far + 0.5 && d > c.minDistance) c.dollyTo(Math.max(c.minDistance, far), false);
+      }
     }
     const view = useAppStore.getState().route.view;
     if (view === 'overview' || view === 'block') {
@@ -390,8 +549,8 @@ export function CameraRig() {
   useEffect(() => {
     const c = ref.current;
     if (!c) return;
-    c.smoothTime = 0.42;
-    c.draggingSmoothTime = 0.14;
+    c.smoothTime = USER_SMOOTH;
+    c.draggingSmoothTime = DRAG_SMOOTH;
     c.mouseButtons.left = CameraControlsImpl.ACTION.ROTATE;
     c.mouseButtons.right = CameraControlsImpl.ACTION.TRUCK;
     c.mouseButtons.middle = CameraControlsImpl.ACTION.DOLLY;
@@ -399,7 +558,7 @@ export function CameraRig() {
     c.touches.one = CameraControlsImpl.ACTION.TOUCH_ROTATE;
     c.touches.two = CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK;
     c.touches.three = CameraControlsImpl.ACTION.NONE;
-    if (import.meta.env.DEV) Object.assign(window, { __controls: c });
+    if (import.meta.env.DEV || location.search.includes('debug')) Object.assign(window, { __controls: c });
   }, []);
 
   return <CameraControls ref={ref as never} makeDefault />;

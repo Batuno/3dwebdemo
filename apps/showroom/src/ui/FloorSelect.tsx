@@ -59,6 +59,8 @@ export function FloorSelect({ block }: { block: string }) {
       expandLabel={t.panel.expand}
       closeLabel={t.panel.close}
       className="floor-select pointer-events-auto"
+      sheet
+      tuck="right"
     >
       <div className="floor-select__level">
         <span className="floor-select__number">{storey}</span>

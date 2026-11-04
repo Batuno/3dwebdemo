@@ -23,6 +23,19 @@ body[data-scene='dark'] {
   --glass-line: rgba(255, 255, 255, 0.28);
 }
 
+/*
+ * Labels inside the 3D scene sit over a canvas that redraws every frame, so a backdrop blur there is
+ * recomputed every frame the camera moves. They get a solid translucent fill with the same look instead.
+ */
+:root {
+  --label-fill: rgba(255, 255, 255, 0.86);
+  --label-chip-fill: rgba(255, 255, 255, 0.8);
+}
+body[data-scene='dark'] {
+  --label-fill: rgba(30, 36, 44, 0.74);
+  --label-chip-fill: rgba(36, 42, 50, 0.66);
+}
+
 /* A white sheet in every scene, so it keeps dark text even when the scene behind it is dark. */
 .lead-form {
   --ink: #1b2024;
@@ -109,9 +122,7 @@ canvas {
   gap: 8px;
   padding: 7px 15px;
   border-radius: 999px;
-  background: var(--glass-strong);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
+  background: var(--label-fill);
   font-weight: 700;
   font-size: 14px;
   box-shadow: 0 6px 20px rgba(20, 30, 40, 0.24);
@@ -126,10 +137,8 @@ canvas {
   padding: 6px 12px;
   border: 1px solid var(--glass-line);
   border-radius: 12px;
-  background: var(--glass);
+  background: var(--label-chip-fill);
   color: var(--ink);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
@@ -202,18 +211,18 @@ canvas {
 }
 
 .room-tag {
-  color: #20262b;
+  color: #fff;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
-  padding: 2px 8px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.88);
-  font-size: 10.5px;
+  font-size: 11px;
   line-height: 1.25;
-  font-weight: 600;
+  font-weight: 700;
   white-space: nowrap;
-  box-shadow: 0 2px 7px rgba(20, 30, 40, 0.18);
+  text-shadow:
+    0 0 2px rgba(10, 14, 18, 0.9),
+    0 1px 3px rgba(10, 14, 18, 0.75),
+    0 0 8px rgba(10, 14, 18, 0.45);
 }
 .room-tag b {
   font-weight: 800;
@@ -410,6 +419,19 @@ canvas {
   padding: 6px;
   border-radius: 18px;
   color: var(--ink);
+}
+/* An open menu draws over everything along the bottom: the 3D / plan switch, sheets and the minimap. */
+.bottom-nav.has-menu {
+  z-index: 35;
+}
+/* Above a flat, the menu opens over the 3D / plan switch rather than on top of it. */
+.nav-menu.is-over-switch {
+  margin-bottom: 58px;
+}
+@media (max-width: 767px), (max-height: 480px) {
+  .nav-menu.is-over-switch {
+    margin-bottom: 52px;
+  }
 }
 .nav-menu__row {
   display: flex;
@@ -648,9 +670,6 @@ body[data-scene='dark'] {
   max-width: calc(100vw - 32px);
   padding: 10px 14px 14px;
 }
-.glass-pill.minimap {
-  padding: 0 18px;
-}
 .minimap__switch {
   display: inline-flex;
   gap: 2px;
@@ -710,6 +729,10 @@ body[data-scene='dark'] {
   font-weight: 600;
   cursor: pointer;
 }
+.room-pill__size::before {
+  content: '·';
+  margin: 0 0.4em;
+}
 .plan-modal {
   position: fixed;
   inset: 0;
@@ -762,10 +785,6 @@ body[data-scene='dark'] {
   cursor: grab;
 }
 @media (max-width: 767px) {
-  .minimap {
-    bottom: 76px;
-    left: 8px;
-  }
   .room-pill {
     top: 64px;
     left: 8px;
@@ -918,6 +937,10 @@ body[data-scene='dark'] {
     max-height: none !important;
     border-radius: 18px;
   }
+  /* A folded panel is just its header, so it lets go of the bottom edge. */
+  .side-panel.glass-fold.is-folded {
+    bottom: auto !important;
+  }
   .glass-pill.floor-select,
   .glass-pill.amenity-list {
     top: auto !important;
@@ -929,16 +952,6 @@ body[data-scene='dark'] {
   }
   .floor-select__help {
     display: none;
-  }
-  .minimap {
-    top: 56px;
-    bottom: 8px;
-    left: 8px;
-    overflow-y: auto;
-  }
-  .glass-pill.minimap {
-    top: auto;
-    bottom: 8px;
   }
   .room-pill {
     top: 54px;
@@ -974,9 +987,6 @@ body[data-scene='dark'] {
     width: auto;
     max-height: 50dvh;
   }
-  .glass-pill.minimap {
-    bottom: 70px;
-  }
 }
 
 @media (max-width: 767px), (max-height: 480px) {
@@ -1009,9 +1019,8 @@ body[data-scene='dark'] {
   inset: 0;
   z-index: 8;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 84px 490px 96px 16px;
+  flex-direction: column;
+  align-items: stretch;
   background: rgba(238, 235, 228, 0.86);
   -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
@@ -1023,19 +1032,92 @@ body[data-scene='dark'] {
   opacity: 1;
   pointer-events: auto;
 }
+.plan-view__head {
+  display: flex;
+  flex: none;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #1d2327;
+  white-space: nowrap;
+}
+.plan-view__head strong {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.plan-view__head span {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(29, 35, 39, 0.08);
+  font-size: 15px;
+  font-weight: 700;
+}
+.plan-view__stage {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+.plan-view__stage.is-zoomed {
+  cursor: grab;
+}
+.plan-view__stage.is-zoomed:active {
+  cursor: grabbing;
+}
 .plan-view__sheet {
   position: relative;
   flex: none;
-  box-shadow: 0 14px 44px rgba(20, 28, 36, 0.22);
+  background: #fbfaf7;
+  box-shadow: 0 14px 44px rgba(20, 28, 36, 0.18);
+  transform-origin: center;
 }
-.plan-view__sheet svg {
+.plan-view__sheet.is-smooth {
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.plan-drawing {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
 }
-.plan-view__dot {
+.plan-view__zoom {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid rgba(29, 35, 39, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 6px 20px rgba(20, 28, 36, 0.14);
+  color: #1d2327;
+}
+.plan-view__zoom button {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: inherit;
   cursor: pointer;
+}
+.plan-view__zoom button:hover:not(:disabled) {
+  background: rgba(29, 35, 39, 0.07);
+}
+.plan-view__zoom button:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 .plan-switch {
   position: fixed;
@@ -1079,11 +1161,100 @@ body[data-scene='dark'] {
   opacity: 0;
 }
 @media (max-width: 767px), (max-height: 480px) {
-  .plan-view {
-    padding: 60px 8px 64px;
-  }
   .plan-switch {
     bottom: 62px;
   }
 }
 
+/*
+ * Portrait phones: panels are sheets that float above the navigation and fold into their header.
+ * The flat's 3D / plan switch rides on top of its sheet, so nothing shares the bottom row with it.
+ */
+.glass-sheet-dock .plan-switch {
+  position: static;
+  transform: none;
+}
+@media (max-width: 767px) and (min-height: 481px) {
+  .side-panel.glass-sheet,
+  .floor-select.glass-sheet,
+  .amenity-list.glass-sheet {
+    top: auto;
+    right: 8px;
+    bottom: 66px;
+    left: 8px;
+    width: auto;
+    max-height: 52dvh;
+    border-radius: 20px;
+  }
+  /* Nothing else lives in the bottom-right corner any more, so the navigation spans the width. */
+  .bottom-nav {
+    right: 8px;
+  }
+  .glass-sheet.is-folded .glass-panel-title {
+    font-size: 14px;
+  }
+  /* Inside a room: a two-line card (name, then size) with the way out beside it, so it never wraps into a taller blob. */
+  .room-pill {
+    flex-wrap: nowrap;
+    border-radius: 18px;
+    line-height: 18px;
+  }
+  .room-pill__text {
+    flex: 1;
+    min-width: 0;
+  }
+  .room-pill__text > * {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .room-pill__size {
+    opacity: 0.75;
+  }
+  .room-pill__size::before {
+    content: none;
+  }
+  .room-pill button {
+    flex: none;
+  }
+}
+.unit-peek {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.unit-peek > * {
+  flex: none;
+}
+.unit-peek__price {
+  flex: 0 1 auto !important;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+}
+@media (max-width: 420px) {
+  .unit-peek__type {
+    display: none;
+  }
+}
+/* A folded flat panel is a slim bar where it stood: number, availability and price, beside its toggle. */
+@media (min-width: 768px) {
+  .side-panel.glass-fold {
+    bottom: auto;
+  }
+}
+.glass-fold.is-folded .unit-peek__type {
+  display: none;
+}
+@media (max-height: 480px) {
+  .side-panel.glass-fold.is-folded {
+    width: auto !important;
+    max-width: 360px;
+    padding: 8px 20px 8px 14px;
+  }
+}

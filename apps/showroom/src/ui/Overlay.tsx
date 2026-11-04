@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { PHONE, PORTRAIT_PHONE, useMedia } from '@bair/ui';
 import { useProgress } from '@react-three/drei';
 import { blockById, garage, outdoorSpotById, projectConfig } from '@bair/project-data';
 import { t } from '@bair/project-data';
@@ -157,13 +158,18 @@ export function Overlay() {
   const navigate = useAppStore((s) => s.navigate);
   const povFade = useAppStore((s) => s.povFade);
   const planMode = useAppStore((s) => s.planMode);
+  // Portrait phones dock the 3D / plan switch on the flat's sheet (see UnitPanel).
+  const portrait = useMedia(PORTRAIT_PHONE);
+  // The flat's minimap is a computer-only aid; on phones the plan switch covers it.
+  const phone = useMedia(PHONE);
   return (
     <div className="pointer-events-none fixed inset-0 z-40">
       <IntroStill />
       <InteriorFade />
       <TopBar />
       <BottomNav />
-      <TimeSlider />
+      {/* The floor plan is a line drawing, so the time of day has nothing to change there. */}
+      {!(route.view === 'unit' && planMode) && <TimeSlider />}
       {route.view === 'block' && (
         <>
           <FloorTicks key={route.block} block={route.block} current={selectedStorey} />
@@ -185,12 +191,13 @@ export function Overlay() {
             stack={route.stack}
             collapsed={route.spot !== undefined}
           />
-          <PlanView key={`${route.block}-${route.stack}`} block={route.block} stack={route.stack} />
-          {!route.spot && <PlanSwitch />}
-          {!(planMode && !route.spot) && <Minimap block={route.block} stack={route.stack} spot={route.spot} />}
+          <PlanView key={`${route.block}-${route.stack}`} block={route.block} storey={route.storey} stack={route.stack} />
+          {!route.spot && !portrait && <PlanSwitch />}
+          {/* The room pill comes first so phones can drop the plan's tab below it (`.room-pill ~ .minimap`). */}
           {route.spot && unitType && (
             <RoomPill type={unitType} spot={route.spot} onExit={() => navigate({ ...route, spot: undefined })} />
           )}
+          {!phone && !(planMode && !route.spot) && <Minimap block={route.block} stack={route.stack} spot={route.spot} />}
         </>
       )}
       {route.view === 'garage' && <GaragePanel />}

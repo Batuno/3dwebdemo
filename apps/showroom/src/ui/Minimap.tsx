@@ -1,6 +1,5 @@
 // The unit plan with every hotspot, the current position, and a cone that turns as you look around.
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { GlassPanel } from '@bair/ui';
 import { blockById, interiors, mirroredInteriors, roomLabel, t, unitTypes, wallPlan } from '@bair/project-data';
 import { rendersBase } from '../lib/renderManifest';
 import { povState } from '../scene/unit/povState';
@@ -42,15 +41,11 @@ export function Minimap({ block, stack, spot }: { block: string; stack: number; 
   };
 
   return (
-    <GlassPanel
-      id="minimap"
-      title={t.unit.plan}
-      initialOnPhone="collapsed"
-      minimizeLabel={t.panel.minimize}
-      expandLabel={t.panel.expand}
-      closeLabel={t.panel.close}
-      className="minimap pointer-events-auto"
-    >
+    // Always on screen beside a flat on computers; phones leave it out (see Overlay).
+    <section className="glass-panel minimap pointer-events-auto" aria-label={t.unit.plan}>
+      <header className="glass-panel-head">
+        <div className="glass-panel-title">{t.unit.plan}</div>
+      </header>
       <div className="minimap__switch" role="group" aria-label={t.unit.plan}>
         <button type="button" aria-pressed={!photo} onClick={() => setPhoto(false)}>
           {t.pov.schematic}
@@ -100,7 +95,7 @@ export function Minimap({ block, stack, spot }: { block: string; stack: number; 
           ))}
         </svg>
       </div>
-    </GlassPanel>
+    </section>
   );
 }
 
@@ -111,9 +106,9 @@ export function RoomPill({ type, spot, onExit }: { type: string; spot: string; o
   if (!h) return null;
   return (
     <div className="room-pill glass pointer-events-auto">
-      <span>
+      <span className="room-pill__text">
         <strong>{h.kind === 'window' ? t.pov.windowView : roomLabel(type, h.room)}</strong>
-        {spec && ` · ${spec.w} × ${spec.d} ${t.unit.metre} · ${spec.area} ${t.unit.m2}`}
+        {spec && <span className="room-pill__size">{`${spec.w} × ${spec.d} ${t.unit.metre} · ${spec.area} ${t.unit.m2}`}</span>}
       </span>
       <button type="button" onClick={onExit}>
         {t.pov.exit}

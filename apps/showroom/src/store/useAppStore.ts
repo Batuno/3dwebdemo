@@ -212,3 +212,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   sceneReady: false,
   setSceneReady: () => set({ sceneReady: true }),
 }));
+
+let routeChangedAt = -Infinity;
+// Every route change counts, whether from navigate, the address bar or a direct setState.
+useAppStore.subscribe((s, prev) => {
+  if (s.route !== prev.route) routeChangedAt = performance.now();
+});
+
+/** performance.now() of the last route change, so frame-rate checks can discount transition frames. */
+export const lastRouteChange = (): number => routeChangedAt;

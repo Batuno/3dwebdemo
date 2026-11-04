@@ -1,6 +1,6 @@
 // The main navigation: Home, Block, Amenities, Garage, Contact, plus floor steps and a settings gear.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { restorePanels } from '@bair/ui';
+import { PORTRAIT_PHONE, restorePanels, useMedia } from '@bair/ui';
 import { blocks, countStatuses, outdoorSpots, projectConfig, t, unitsInBlock } from '@bair/project-data';
 import { useAppStore, type Quality } from '../store/useAppStore';
 import { IconCar, IconChat, IconDown, IconGear, IconHome, IconLayers, IconPhone, IconTree, IconUp } from './icons';
@@ -39,6 +39,11 @@ export function BottomNav() {
     return () => window.removeEventListener('keydown', onKey);
   }, [menu]);
 
+  // A flat's 3D / plan switch sits just above this bar (except on portrait phones, where it rides on the
+  // flat's sheet), so an open menu lifts clear of it instead of opening underneath it.
+  const portrait = useMedia(PORTRAIT_PHONE);
+  const overSwitch = route.view === 'unit' && !route.spot && !portrait;
+
   const canStep = route.view === 'floor' || route.view === 'unit';
   const step = (d: number) => {
     if (route.view !== 'floor' && route.view !== 'unit') return;
@@ -47,9 +52,9 @@ export function BottomNav() {
   };
 
   return (
-    <nav className="bottom-nav pointer-events-none" aria-label={t.nav.main}>
+    <nav className={`bottom-nav pointer-events-none ${menu ? 'has-menu' : ''}`} aria-label={t.nav.main}>
       {menu && (
-        <div className="glass nav-menu pointer-events-auto">
+        <div className={`glass nav-menu pointer-events-auto ${overSwitch ? 'is-over-switch' : ''}`}>
           {menu === 'block' &&
             blocks.map((b) => (
               <button

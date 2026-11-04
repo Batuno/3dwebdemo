@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { GlassPanel } from '@bair/ui';
+import { GlassPanel, useMedia } from '@bair/ui';
 import { t } from '@bair/project-data';
 import type { StatusCounts } from '@bair/project-data';
 import type { UnitStatus } from '@bair/project-data';
@@ -53,7 +53,10 @@ export function IconButton({
   );
 }
 
-/** Side panel on desktop, bottom sheet on phones. Collapses to a pill everywhere. */
+/**
+ * Side panel on desktop, bottom sheet on portrait phones. Hiding it slides it to its side (or folds the
+ * sheet into its header) and leaves a tab to bring it back; with `fold` it folds into its header everywhere.
+ */
 export function Panel({
   id,
   title,
@@ -63,6 +66,9 @@ export function Panel({
   children,
   width = 'md:w-[380px]',
   footer,
+  dock,
+  pill,
+  fold,
 }: {
   id: string;
   title: ReactNode;
@@ -72,9 +78,17 @@ export function Panel({
   children: ReactNode;
   width?: string;
   footer?: ReactNode;
+  /** Rides on top of the phone sheet, such as the 3D / plan switch. */
+  dock?: ReactNode;
+  /** What the hidden panel's tab (or folded sheet) shows; defaults to the title. */
+  pill?: ReactNode;
+  /** Folds into its header in place, with one toggle button, instead of sliding away. */
+  fold?: boolean;
 }) {
   // The right edge belongs to the time slider.
   const pos = side === 'right' ? 'md:right-[92px]' : 'md:left-4';
+  // Landscape phones keep every panel in a column on the right.
+  const landscapePhone = useMedia('(max-height: 480px)');
   return (
     <GlassPanel
       id={id}
@@ -82,6 +96,11 @@ export function Panel({
       initial={initial}
       initialOnPhone={initialOnPhone}
       footer={footer}
+      sheet
+      fold={fold}
+      dock={dock}
+      pill={pill}
+      tuck={landscapePhone ? 'right' : side}
       minimizeLabel={t.panel.minimize}
       expandLabel={t.panel.expand}
       closeLabel={t.panel.close}

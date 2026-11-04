@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { site, type Vec2 } from '@bair/project-data';
 import { sceneUniforms } from '../shared';
+import { useAppStore } from '../../store/useAppStore';
 import { CROSSWALK_Z, eastX0, eastX1, northZ0, smoothPath, southZ0, STREET, westX0 } from './Ground';
 
 function streetLampSpots() {
@@ -132,6 +133,7 @@ export function Lamps() {
   useEffect(() => () => meshes.forEach((m) => m.dispose()), [meshes]);
 
   useFrame(() => {
+    if (useAppStore.getState().route.view === 'garage') return;
     const n = sceneUniforms.uNight.value;
     glow.emissiveIntensity = n * 9;
     poolMat.opacity = n * 0.36;

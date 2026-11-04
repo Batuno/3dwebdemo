@@ -66,15 +66,13 @@ Going back adds a new commit and keeps the history, so it is safe with both side
 
 **If both sides edit the same line:** sync does not stop. The side that syncs last wins that line, the earlier version is saved on a `backup/...` branch on GitHub, and the event is written to `.git/sync.log`. Edits to different lines, even in the same file, merge normally.
 
-Sync commits now run GitHub Actions so the hosted Pages site can redeploy after synced edits. CI checks and the Pages build may run for each sync commit.
+Sync commits skip CI to save the free Actions minutes, and they are not tested first, so unfinished work can reach the other side. Commit by hand without `[skip ci]` to run the checks.
 
 ## Deploy
 
-GitHub Actions runs lint, typecheck and tests on normal commits. The Pages workflow in `.github/workflows/deploy.yml` automatically deploys after pushes to `main`; it can also be started manually from **Actions**. Before the first deploy, set **Settings → Pages → Build and deployment → Source** to **GitHub Actions**.
+GitHub Actions runs lint, typecheck and tests on every normal commit. GitHub Pages needs a public repository or a paid plan, so the Pages deploy runs only when started by hand from the **Actions** tab. Before using it, set **Pages → Source** to **GitHub Actions** in the repository settings.
 
-GitHub Pages is free for public repositories. If this repository is private, make it public before using Pages on the free plan (or use a host that supports private repositories). The project contains a sample Oak Ville @ AMK apartment layout and brochure-derived references; remove or replace those and get permission before making the repository public or using the sample commercially.
-
-GitHub rejects files over 100 MB and limits the published site's size. The current showroom assets are about 21 MB, so they fit comfortably for this demo. For real projects, keep large renders out of Pages: upload them to a CDN and build with `VITE_ASSET_BASE_URL` set to its address, with a trailing slash.
+GitHub rejects files over 100 MB and limits the published site's size. Keep rendered images out of Pages for real projects: upload them to a CDN and build with `VITE_ASSET_BASE_URL` set to its address, with a trailing slash. Assets and renders then load from there.
 
 ## Rendering and 3D pipelines
 

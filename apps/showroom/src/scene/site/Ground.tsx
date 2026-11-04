@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { blocks, site, type Vec2 } from '@bair/project-data';
@@ -8,6 +8,23 @@ import { useMaterials } from '../materials';
 import { addWorldPos, damp, NOISE_GLSL } from '../shared';
 import { useAppStore } from '../../store/useAppStore';
 import { requestShadowUpdate } from '../lighting/shadowControl';
+import { registerWarmup } from '../warmup';
+
+const reduceMotion = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+/**
+ * See-through copy of the lawn for the open garage, made once. Swapping materials is free, while
+ * flipping `transparent` on the shared lawn would recompile its shader in the middle of the camera move.
+ */
+function makeFadingGrass(grass: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
+  const m = grass.clone();
+  m.onBeforeCompile = grass.onBeforeCompile;
+  m.customProgramCacheKey = grass.customProgramCacheKey;
+  m.transparent = true;
+  m.depthWrite = false;
+  m.opacity = 1;
+  return m;
+}
 
 export const STREET = {
   sidewalk: 3.5,
@@ -248,18 +265,41 @@ export function Ground() {
     [lib],
   );
   const cityMat = useMemo(makeCityMaterial, []);
+  const fadingGrass = useMemo(() => makeFadingGrass(lib.grass), [lib]);
+  useEffect(() => () => fadingGrass.dispose(), [fadingGrass]);
+  const grassMesh = useRef<THREE.Mesh>(null);
   const view = useAppStore((st) => st.route.view);
   const open = view === 'garage';
   useEffect(() => {
     groundHole.value = open ? 1 : 0;
-    const g = lib.grass;
-    g.transparent = open;
-    g.depthWrite = !open;
-    g.needsUpdate = true;
     requestShadowUpdate();
-  }, [open, lib]);
+  }, [open]);
+  // Lets the idle warm-up compile the see-through lawn before anyone opens the garage.
+  useEffect(
+    () =>
+      registerWarmup(() => {
+        const mesh = grassMesh.current;
+        if (!mesh) return () => {};
+        const was = mesh.material;
+        mesh.material = fadingGrass;
+        return () => {
+          mesh.material = was;
+        };
+      }),
+    [fadingGrass],
+  );
   useFrame((_, dt) => {
-    lib.grass.opacity = damp(lib.grass.opacity, open ? 0.14 : 1, 4, dt);
+    const mesh = grassMesh.current;
+    if (!mesh) return;
+    if (open) {
+      if (mesh.material !== fadingGrass) {
+        fadingGrass.opacity = 1;
+        mesh.material = fadingGrass;
+      }
+      fadingGrass.opacity = reduceMotion ? 0.14 : damp(fadingGrass.opacity, 0.14, 4, dt);
+    } else if (mesh.material !== lib.grass) {
+      mesh.material = lib.grass;
+    }
   });
   return (
     <group name="Ground">
@@ -271,6 +311,7 @@ export function Ground() {
       {geos.map(([k, g]) => (
         <mesh
           key={k}
+          ref={k === 'grass' ? grassMesh : undefined}
           geometry={g}
           material={materials[k]}
           receiveShadow

@@ -9,6 +9,7 @@ import { roofY } from '@bair/project-data';
 import { useMaterials } from '../materials';
 import { requestShadowUpdate } from '../lighting/shadowControl';
 import { addWorldPos, sceneUniforms } from '../shared';
+import { useAppStore } from '../../store/useAppStore';
 import { CROSSWALK_Z, eastX0, eastX1, northZ0, northZ1, smoothPath, southZ0, southZ1, STREET, westX0, westX1 } from './Ground';
 
 /* ---------- Geometry ---------- */
@@ -523,6 +524,7 @@ function RoofPlants({ material, geometry }: { material: THREE.Material; geometry
   );
   useEffect(() => () => meshes.forEach(({ m }) => m.dispose()), [meshes]);
   useFrame(() => {
+    if (useAppStore.getState().route.view === 'garage') return;
     for (const { m, b } of meshes) m.visible = clipTarget(b) > roofY(b);
   });
   return (

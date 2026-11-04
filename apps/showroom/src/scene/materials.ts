@@ -4,32 +4,46 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useKTX2 } from '@react-three/drei';
 import { projectConfig } from '@bair/project-data';
+import { tiered } from './assetTier';
 import { addWorldPos, assetUrl, basisPath, NOISE_GLSL, sceneUniforms } from './shared';
 
-const SETS = [
-  'grass',
-  'asphalt',
-  'paving',
-  'concrete',
-  'plaster',
-  'woodfloor',
-  'tile',
-  'fabric',
-  'carpet',
-  'rubber',
-  'bark',
-  'wood',
-] as const;
-type SetName = (typeof SETS)[number];
+type MapKind = 'color' | 'normal' | 'rough';
+const ALL: readonly MapKind[] = ['color', 'normal', 'rough'];
 
-const urls: string[] = [
-  ...SETS.flatMap((s) => [
-    assetUrl(`textures/${s}_color.ktx2`),
-    assetUrl(`textures/${s}_normal.ktx2`),
-    assetUrl(`textures/${s}_rough.ktx2`),
-  ]),
-  assetUrl('textures/leaves_color.ktx2'),
-];
+/** Textures the site needs for its first frame, and only the maps something actually uses. */
+const SITE_MAPS = {
+  grass: ALL,
+  asphalt: ALL,
+  paving: ALL,
+  concrete: ALL,
+  plaster: ['normal', 'rough'],
+  rubber: ['normal', 'rough'],
+  bark: ALL,
+  wood: ALL,
+} as const satisfies Record<string, readonly MapKind[]>;
+
+/** Used only inside flats: fetched once the page is idle, or when a flat opens, whichever comes first. */
+const INTERIOR_MAPS = {
+  woodfloor: ALL,
+  tile: ALL,
+  fabric: ['normal'],
+  carpet: ['normal'],
+} as const satisfies Record<string, readonly MapKind[]>;
+
+type SiteSet = keyof typeof SITE_MAPS;
+type InteriorSet = keyof typeof INTERIOR_MAPS;
+type SetName = SiteSet | InteriorSet;
+
+// Phones get the same textures one mip level down: a quarter of the download, and no visible loss at
+// their size and pixel ratio. The files are made at build time (vite.config.ts, src/lib/ktx2Lite.ts).
+const textureUrl = (name: string) => assetUrl(tiered(`textures/${name}.ktx2`));
+const FILE: Record<MapKind, string> = { color: 'color', normal: 'normal', rough: 'rough' };
+
+const urlsFor = (maps: Record<string, readonly MapKind[]>) =>
+  Object.entries(maps).flatMap(([set, kinds]) => kinds.map((k) => textureUrl(`${set}_${FILE[k]}`)));
+
+const siteUrls: string[] = [...urlsFor(SITE_MAPS), textureUrl('leaves_color')];
+const interiorUrls: string[] = urlsFor(INTERIOR_MAPS);
 
 /** metres covered by one texture repeat */
 const TILE: Record<SetName, number> = {
@@ -47,11 +61,14 @@ const TILE: Record<SetName, number> = {
   wood: 1.2,
 };
 
+/** The maps of one material set; only the ones in use are loaded. */
 export interface PbrSet {
-  map: THREE.Texture;
-  normalMap: THREE.Texture;
-  roughnessMap: THREE.Texture;
+  map?: THREE.Texture;
+  normalMap?: THREE.Texture;
+  roughnessMap?: THREE.Texture;
 }
+
+const SLOT: Record<MapKind, keyof PbrSet> = { color: 'map', normal: 'normalMap', rough: 'roughnessMap' };
 
 function prepare(t: THREE.Texture, tile: number, srgb: boolean, aniso: number) {
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -147,16 +164,21 @@ function patchMacro(m: THREE.MeshStandardMaterial, a: string, b: string, scale: 
 
 const std = (o: THREE.MeshStandardMaterialParameters) => new THREE.MeshStandardMaterial(o);
 
+/** Textures in the order urlsFor() listed them, sorted into their sets. */
+function buildSets<K extends SetName>(maps: Record<K, readonly MapKind[]>, tex: THREE.Texture[], aniso: number) {
+  const sets = {} as Record<K, PbrSet>;
+  let i = 0;
+  for (const name of Object.keys(maps) as K[]) {
+    const set: PbrSet = {};
+    for (const kind of maps[name]) set[SLOT[kind]] = prepare(tex[i++], TILE[name], kind === 'color', aniso);
+    sets[name] = set;
+  }
+  return { sets, used: i };
+}
+
 function buildLibrary(tex: THREE.Texture[], aniso: number) {
-  const sets = {} as Record<SetName, PbrSet>;
-  SETS.forEach((s, i) => {
-    sets[s] = {
-      map: prepare(tex[i * 3], TILE[s], true, aniso),
-      normalMap: prepare(tex[i * 3 + 1], TILE[s], false, aniso),
-      roughnessMap: prepare(tex[i * 3 + 2], TILE[s], false, aniso),
-    };
-  });
-  const leafMap = tex[SETS.length * 3];
+  const { sets, used } = buildSets(SITE_MAPS, tex, aniso);
+  const leafMap = tex[used];
   leafMap.colorSpace = THREE.SRGBColorSpace;
   leafMap.anisotropy = aniso;
 
@@ -223,11 +245,22 @@ export type MaterialLibrary = ReturnType<typeof buildLibrary>;
 
 let cached: MaterialLibrary | null = null;
 
-/** Suspends until every texture is transcoded; afterwards the same materials are shared. */
+/** Suspends until every site texture is transcoded; afterwards the same materials are shared. */
 export function useMaterials(): MaterialLibrary {
-  const tex = useKTX2(urls, basisPath()) as THREE.Texture[];
+  const tex = useKTX2(siteUrls, basisPath()) as THREE.Texture[];
   return useMemo(() => {
     if (!cached) cached = buildLibrary(tex, 8);
     return cached;
+  }, [tex]);
+}
+
+let interiorCached: Record<InteriorSet, PbrSet> | null = null;
+
+/** The texture sets used only inside flats. Suspends while they load; prefetched when the page is idle. */
+export function useInteriorSets(): Record<InteriorSet, PbrSet> {
+  const tex = useKTX2(interiorUrls, basisPath()) as THREE.Texture[];
+  return useMemo(() => {
+    interiorCached ??= buildSets(INTERIOR_MAPS, tex, 8).sets;
+    return interiorCached;
   }, [tex]);
 }

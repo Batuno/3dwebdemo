@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { PORTRAIT_PHONE, useMedia } from '@bair/ui';
 import { blockById, garage, interiors, mirroredInteriors, projectConfig, roomLabel, site, unitTypes } from '@bair/project-data';
 import { t } from '@bair/project-data';
-import { formatPrice, unitNumber } from '@bair/project-data';
+import { formatPrice, formatPriceShort, unitNumber } from '@bair/project-data';
 import { compassKey, facingDeg } from '@bair/project-data';
 import { getUnit, garageBays } from '@bair/project-data';
 import { useAppStore } from '../store/useAppStore';
@@ -9,6 +10,7 @@ import { Panel, primaryBtn, secondaryBtn, Stat, StatusBadge } from './common';
 import { IconCalendar, IconChat, IconInfo, IconPhone, IconPlan, IconShare } from './icons';
 import { LeadModal } from './LeadModal';
 import { TopViewModal } from './TopViewModal';
+import { PlanSwitch } from './PlanView';
 import type { LeadKind } from '../lib/leads';
 
 function Compass({ deg }: { deg: number }) {
@@ -38,6 +40,8 @@ export function UnitPanel({ block, storey, stack, collapsed }: { block: string; 
   const [showPlan, setShowPlan] = useState(false);
   const fittings = useAppStore((s) => s.fittings);
   const setFitting = useAppStore((s) => s.setFitting);
+  // On portrait phones the 3D / plan switch rides on top of this sheet instead of floating over it.
+  const portrait = useMedia(PORTRAIT_PHONE);
 
   const number = unitNumber(storey, stack);
   const bay = parkingBay ? garageBays.find((b) => b.id === parkingBay) : undefined;
@@ -60,6 +64,18 @@ export function UnitPanel({ block, storey, stack, collapsed }: { block: string; 
         id={collapsed ? 'unit-pov' : 'unit'}
         initial={collapsed ? 'collapsed' : 'open'}
         initialOnPhone="collapsed"
+        fold
+        dock={portrait && !collapsed ? <PlanSwitch /> : undefined}
+        pill={
+          <span className="unit-peek">
+            <span className="text-base font-extrabold">{number}</span>
+            <StatusBadge status={unit.status} />
+            <span className="unit-peek__price">
+              <span className="unit-peek__type">{t.unitType[unit.type]} · </span>
+              {formatPriceShort(unit.price)}
+            </span>
+          </span>
+        }
         title={
           <div className="flex items-center gap-2">
             <span className="text-lg font-extrabold">{number}</span>
