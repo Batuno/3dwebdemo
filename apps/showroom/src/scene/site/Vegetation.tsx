@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { blocks, site, type Vec2, outdoorSpots } from '@bair/project-data';
+import { blocks, cameras, site, type Vec2, outdoorSpots } from '@bair/project-data';
 import { mulberry32 } from '@bair/project-data';
 import { clipTarget, getBuiltBlock } from '../blocks/Block';
 import { roofY } from '@bair/project-data';
@@ -10,7 +10,7 @@ import { useMaterials } from '../materials';
 import { requestShadowUpdate } from '../lighting/shadowControl';
 import { addWorldPos, sceneUniforms } from '../shared';
 import { useAppStore } from '../../store/useAppStore';
-import { CROSSWALK_Z, eastX0, eastX1, northZ0, northZ1, smoothPath, southZ0, southZ1, STREET, westX0, westX1 } from './Ground';
+import { CROSSWALK_Z, eastX0, eastX1, northZ0, northZ1, PARK_PATHS, PARKS, smoothPath, southZ0, southZ1, STREET, westX0, westX1 } from './Ground';
 
 /* ---------- Geometry ---------- */
 
@@ -265,11 +265,70 @@ function placeTrees() {
     midCount++;
   }
 
+  // Parks across the streets: tree clusters that frame the opening shot from its sides, never in its line of
+  // sight to the towers, and kept off the park paths.
+  const parkPaths = PARK_PATHS.map((p) => ({ pts: smoothPath(p.points, 3), r: p.width / 2 }));
+  const nearParkPath = (x: number, z: number, gap: number) =>
+    parkPaths.some(({ pts, r }) => pts.some((p) => Math.hypot(p[0] - x, p[1] - z) < r + gap));
+  const inPark = (x: number, z: number, inset: number) =>
+    PARKS.some(([x0, z0, x1, z1]) => x > x0 + inset && x < x1 - inset && z > z0 + inset && z < z1 - inset);
+  const [camX, , camZ] = cameras.opening.pos;
+  const [aimX, , aimZ] = cameras.opening.target;
+  const aimLen = Math.hypot(aimX - camX, aimZ - camZ);
+  const aimDx = (aimX - camX) / aimLen;
+  const aimDz = (aimZ - camZ) / aimLen;
+  /** A cone around the opening shot's line to the towers, widening with distance, plus room around the lens. */
+  const inOpeningView = (x: number, z: number) => {
+    const rx = x - camX;
+    const rz = z - camZ;
+    if (Math.hypot(rx, rz) < 22) return true;
+    const along = rx * aimDx + rz * aimDz;
+    const across = Math.abs(rx * aimDz - rz * aimDx);
+    return along > -12 && across < 16 + Math.max(0, along) * 0.22;
+  };
+  guard = 0;
+  let parkTrees = 0;
+  while (parkTrees < 56 && guard++ < 4000) {
+    const [x0, z0, x1, z1] = PARKS[Math.floor(rnd() * PARKS.length)];
+    const cx = x0 + rnd() * (x1 - x0);
+    const cz = z0 + rnd() * (z1 - z0);
+    if (!inPark(cx, cz, 4) || inOpeningView(cx, cz) || nearParkPath(cx, cz, 4)) continue;
+    // A clump of three to five, the way a park is planted, rather than an even scatter.
+    const clump = 3 + Math.floor(rnd() * 3);
+    for (let i = 0; i < clump && parkTrees < 56; i++) {
+      const a = rnd() * Math.PI * 2;
+      const r = i === 0 ? 0 : 5 + rnd() * 6;
+      const x = cx + Math.cos(a) * r;
+      const z = cz + Math.sin(a) * r;
+      if (!inPark(x, z, 3) || inOpeningView(x, z) || nearParkPath(x, z, 3.2)) continue;
+      if (near.some((t) => Math.hypot(t.x - x, t.z - z) < 6.4)) continue;
+      addNear(x, z, 0.95 + rnd() * 0.3);
+      parkTrees++;
+    }
+  }
+
   // Shrub beds: along tower aprons and around amenities
   const shrubAt = (x: number, z: number, kind: number, s = 1) => {
     if (blocked(x, z, -0.5)) return;
     shrubs.push({ x, z, scale: s * (0.75 + rnd() * 0.6), rot: rnd() * 6.28, kind });
   };
+  // Low planting along the first stretch of each park path, where the paths meet the street.
+  for (const { pts, r } of parkPaths) {
+    for (let i = 1; i < Math.min(pts.length - 1, 14); i++) {
+      const [ax, az] = pts[i - 1];
+      const [bx, bz] = pts[i + 1];
+      const len = Math.hypot(bx - ax, bz - az) || 1;
+      const nx = -(bz - az) / len;
+      const nz = (bx - ax) / len;
+      for (const side of [-1, 1]) {
+        if (rnd() < 0.35) continue;
+        const off = r + 1.1 + rnd() * 0.8;
+        const x = pts[i][0] + nx * off * side;
+        const z = pts[i][1] + nz * off * side;
+        if (inPark(x, z, 1)) shrubAt(x, z, rnd() < 0.4 ? 1 : 0, 0.95);
+      }
+    }
+  }
   for (const b of blocks) {
     const d = getBuiltBlock(b);
     for (const f of d.footprints) {

@@ -9,6 +9,9 @@ import { setUpGltfLoader } from '../gltfLoader';
 import { assetUrl } from '../shared';
 import { applyRoomLights } from './interiorLights';
 
+/** Every model the decor places; the idle warm-up compiles them before the first flat opens (InteriorWarmup). */
+export const DECOR_MODELS = ['pachira_aquatica_01', 'potted_plant_04', 'ceramic_vase_01'] as const;
+
 function Model({ name, height, at, y = 0, only, roomLit }: { name: string; height: number; at: [number, number]; y?: number; only?: string; roomLit: boolean }) {
   const gl = useThree((s) => s.gl);
   const gltf = useGLTF(assetUrl(`models/${name}.glb`), false, false, (loader) => setUpGltfLoader(loader as never, gl));

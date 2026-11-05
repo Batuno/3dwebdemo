@@ -18,6 +18,7 @@ import { Minimap, RoomPill } from './Minimap';
 import { PlanSwitch, PlanView } from './PlanView';
 import { TimeSlider } from './TimeSlider';
 import { UnitPanel } from './UnitPanel';
+import { Dissolve } from './Dissolve';
 
 function Toast() {
   const toast = useAppStore((s) => s.toast);
@@ -166,6 +167,7 @@ export function Overlay() {
     <div className="pointer-events-none fixed inset-0 z-40">
       <IntroStill />
       <InteriorFade />
+      <Dissolve />
       <TopBar />
       <BottomNav />
       {/* The floor plan is a line drawing, so the time of day has nothing to change there. */}

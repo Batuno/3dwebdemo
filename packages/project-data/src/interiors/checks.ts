@@ -92,6 +92,17 @@ function sector(door: InteriorDoor): { cx: number; cz: number; r: number; dirs: 
   return { cx, cz, r, dirs: [door.swing, along] };
 }
 
+/**
+ * A door's swing as drawn on a plan: the hinge, the leaf's length, and the directions of the closed and open
+ * leaf as unit vectors in plan coordinates. Null for openings and sliding doors, which don't swing.
+ */
+export function doorSwing(
+  door: InteriorDoor,
+): { cx: number; cz: number; r: number; closed: [number, number]; open: [number, number] } | null {
+  const s = sector(door);
+  return s && { cx: s.cx, cz: s.cz, r: s.r, open: DIRS[s.dirs[0]], closed: DIRS[s.dirs[1]] };
+}
+
 /** Every point a door leaf passes through, sampled every 2 cm. */
 export function swingSamples(door: InteriorDoor, plan = sector(door)): [number, number][] {
   if (!plan) return [];

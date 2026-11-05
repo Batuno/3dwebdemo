@@ -1,10 +1,10 @@
-// The flat's floor plan, crossfading over the dollhouse: the plain drawing, its number and area, and zoom.
+// The flat's floor plan, crossfading over the dollhouse: the drawing with room names and sizes, its number and area, and zoom.
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { isPhone, PORTRAIT_PHONE, useMedia, usePanelOpen } from '@bair/ui';
 import { blockById, interiors, mirroredInteriors, t, unitNumber, unitTypes } from '@bair/project-data';
 import { useAppStore } from '../store/useAppStore';
 import { IconMinus, IconPlus, IconReset } from './icons';
-import { PlanDrawing } from './PlanDrawing';
+import { PlanDrawing, planFrame } from './PlanDrawing';
 
 const SIDE_PANEL = 490;
 const SCREEN_MARGIN = 16;
@@ -70,9 +70,11 @@ export function PlanView({ block, storey, stack }: { block: string; storey: numb
   const right = portrait ? 8 : landscape ? (panelOpen ? LANDSCAPE_PANEL : 8) : panelOpen ? SIDE_PANEL : SCREEN_MARGIN;
   const stageW = Math.max(1, w - left - right);
   const stageH = Math.max(1, h - top - bottom - HEAD);
-  const pxPerMetre = Math.min(stageW / layout.width, stageH / layout.depth);
-  const sheetW = layout.width * pxPerMetre;
-  const sheetH = layout.depth * pxPerMetre;
+  // The sheet holds the walls plus the paper around them for the dimension lines and the way in.
+  const frame = planFrame(layout);
+  const pxPerMetre = Math.min(stageW / frame.w, stageH / frame.h);
+  const sheetW = frame.w * pxPerMetre;
+  const sheetH = frame.h * pxPerMetre;
 
   const [wanted, setWanted] = useState<View>(FIT);
   const [smooth, setSmooth] = useState(false);
@@ -187,7 +189,7 @@ export function PlanView({ block, storey, stack }: { block: string; storey: numb
               className={`plan-view__sheet ${smooth ? 'is-smooth' : ''}`}
               style={{ width: sheetW, height: sheetH, transform: `translate(${view.x}px, ${view.y}px) scale(${view.s})` }}
             >
-              <PlanDrawing layout={layout} />
+              <PlanDrawing layout={layout} pxPerMetre={pxPerMetre} />
             </div>
             <div className="plan-view__zoom" role="group">
               <button type="button" aria-label={t.unit.zoomIn} disabled={view.s >= MAX_ZOOM} onClick={() => step(STEP)}>

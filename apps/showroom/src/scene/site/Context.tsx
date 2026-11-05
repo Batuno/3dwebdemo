@@ -81,7 +81,9 @@ export interface Tower {
   color: string;
 }
 
-const TONES = ['#d9d4c8', '#c9c6be', '#e3dfd6', '#bdb7ab', '#cfcabd', '#d2c8b6', '#b9bcbd'];
+// A step darker and greyer than the project's own facade, so the neighbours sit back and the towers on
+// sale carry the brightest whites in the picture.
+const TONES = ['#c2bfb7', '#b4b3ae', '#cbc8c0', '#aaa69e', '#bab7ae', '#bcb4a6', '#a6aaac'];
 
 function placeTowers(): Tower[] {
   const rnd = mulberry32(8080);

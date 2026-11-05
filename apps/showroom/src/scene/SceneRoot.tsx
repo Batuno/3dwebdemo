@@ -11,6 +11,7 @@ import { CameraRig } from './camera/CameraRig';
 import { Labels } from './labels/Labels';
 import { Lighting } from './lighting/Lighting';
 import { PostFx } from './lighting/PostFx';
+import { FrameGrab } from './FrameGrab';
 import { Amenities } from './site/Amenities';
 import { Cars } from './site/Cars';
 import { Surroundings } from './site/Context';
@@ -25,10 +26,11 @@ import { unitsOnFloor } from '@bair/project-data';
 import { FloorPlan } from './floor/FloorPlan';
 import { PanoramaLayer } from './unit/PanoramaLayer';
 import { requestShadowUpdate } from './lighting/shadowControl';
-import { warmUp } from './warmup';
+import { warmUp, whenIdle } from './warmup';
 
 const UnitInterior = lazy(() => import('./unit/UnitInterior'));
 const Garage = lazy(() => import('./garage/Garage'));
+const InteriorWarmup = lazy(() => import('./unit/InteriorWarmup'));
 
 // Dev-only frame-time probe. The static check removes it from normal production builds.
 const TransitionProbe =
@@ -201,20 +203,6 @@ function stepDownQuality() {
 const TRANSITION_GRACE_MS = 2500;
 const inTransition = () => performance.now() - lastRouteChange() < TRANSITION_GRACE_MS;
 
-/** Runs once the browser has a quiet moment, after `delay` ms. Returns a cancel function. */
-function whenIdle(fn: () => void, delay = 0): () => void {
-  let idle = 0;
-  const start = setTimeout(() => {
-    if (typeof requestIdleCallback === 'function') idle = requestIdleCallback(fn, { timeout: 3000 });
-    else idle = window.setTimeout(fn, 1500);
-  }, delay);
-  return () => {
-    clearTimeout(start);
-    if (typeof cancelIdleCallback === 'function') cancelIdleCallback(idle);
-    clearTimeout(idle);
-  };
-}
-
 /** After the opening shot, fetch the code for views that aren't open yet, so a first visit doesn't wait for it. */
 const OPENING_SECONDS = 5;
 
@@ -233,10 +221,17 @@ function WarmUp() {
   return null;
 }
 
-/** Loads the flats' textures ahead of time, so the first flat opens without waiting for them. */
+/**
+ * Loads the flats' textures ahead of time, then compiles the flat's materials, decor and hotspot dots off-screen
+ * (see InteriorWarmup), so the first flat opens without waiting for either in the middle of the glide.
+ */
 function PrefetchInterior() {
   useInteriorSets();
-  return null;
+  return (
+    <Suspense fallback={null}>
+      <InteriorWarmup />
+    </Suspense>
+  );
 }
 
 function World({ q }: { q: QualitySettings }) {
@@ -343,7 +338,8 @@ export function SceneRoot() {
             api.flipped = Math.max(0, api.flipped - 1);
             return;
           }
-          setDprScale((v) => Math.max(0.7, v - 0.15));
+          // Never below 85 %: past that the picture turns visibly soft, and dropping a tier (below) is the better trade.
+          setDprScale((v) => Math.max(0.85, v - 0.15));
         }}
         onIncline={() => setDprScale((v) => Math.min(1, v + 0.1))}
         onFallback={(api: PerformanceMonitorApi) => {
@@ -358,7 +354,14 @@ export function SceneRoot() {
       />
       <Suspense fallback={null}>
         <World q={q} />
-        {panoActive ? <PlainRender /> : <PostFx quality={quality} close={closeView} />}
+        {panoActive ? (
+          <PlainRender />
+        ) : (
+          <>
+            <PostFx quality={quality} close={closeView} />
+            <FrameGrab />
+          </>
+        )}
       </Suspense>
       <CameraRig />
       {TransitionProbe && (

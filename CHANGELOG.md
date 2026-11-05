@@ -2,6 +2,10 @@
 
 ## 0.3.3
 
+### Added
+
+- `vault/`: an Obsidian vault for the project's notes, shared with Claude Code in the cloud and on the computers. `CLAUDE.md` loads its current-focus note into every session and says when to read the inbox and leave session notes, decisions and ideas.
+
 ### Changed
 
 - Hiding a panel no longer removes it. Its × button, Esc, or dragging a sheet down slides it out to its side and leaves a tab that slides it back, and the subject moves to the middle of the screen while the panel is away.
@@ -13,9 +17,13 @@
 - The floor highlight in block view glides between storeys and fades its colour; windows and lamps glow a little more after dark; ambient occlusion fades in and out of flats.
 - The first step of the breadcrumb reads «Эхлэл» instead of «Төсөл».
 - A flat's information panel no longer slides off the screen. One toggle button in its header folds it into a slim bar where it stood (number, availability and price) and opens it again. On portrait phones the sheet's × is the same toggle (chevron down to fold, up to open).
-- The flat's plan view (the 3D / «Төлөвлөгөө» switch) shows a clean drawn floor plan instead of the furnished render: walls, windows and fixed furniture in line, with no room names. The flat's number and total area sit above it. It zooms with the mouse wheel, a pinch, double-click or the + / − buttons, pans by dragging once zoomed, and stays sharp at every zoom. The time slider steps aside while the plan is up, and the controls over it switch to dark text.
+- The flat's plan view (the 3D / «Төлөвлөгөө» switch) shows a drawn sales plan instead of the furnished render: walls, windows and door swings, with no furniture. Every room is named in Mongolian with its size and area (Зочны өрөө, 3.2 × 4.4 м, 14.1 м²); labels wrap and shrink to fit, and small rooms drop the size before the name. «Орц» marks the front door, dimension lines give the flat's overall width and depth, and wet rooms are tinted. The flat's number and total area sit above it. It zooms with the mouse wheel, a pinch, double-click or the + / − buttons, pans by dragging once zoomed, and stays sharp at every zoom. The time slider steps aside while the plan is up, and the controls over it switch to dark text.
 - On computers the flat's minimap is always on screen, with no button to hide it. Phones no longer show the minimap or its «Төлөвлөгөө» tab.
 - Room names and areas over the 3D flat are plain text with a soft shadow instead of white boxes, so they no longer hide the rooms beneath them.
+- Daylight has more contrast and truer colour: a stronger sun against a lighter fill, so shaded faces read as shaded, and Khronos PBR Neutral tone mapping instead of AgX, so the facade, planting and playground keep their colours. The haze is a little bluer and the generated neighbouring buildings a step darker, so the project's towers carry the brightest whites. Evening rooms stay warm without turning orange.
+- Parkland across the streets from the plot, east of the main road and south of the side street, with footpaths and tree clumps that frame the opening shot without blocking it. Lawns no longer glint grey like gravel at eye level.
+- Moving into, out of or between standing points cross-dissolves from a still of the old view, with a slight push forward, instead of dipping through black.
+- A light adaptive sharpening pass at the end of the image chain, and texture filtering at the GPU's best (usually 16x) on computers. A struggling device no longer drops below 85 % of the screen's resolution; it drops a quality tier instead.
 
 ### Fixed
 
@@ -27,6 +35,8 @@
 - Standing inside a flat, hotspot dots were often hidden under the plan, the navigation or the time slider, so clicking them did nothing. Dots now float higher in that view, near dots keep a full-size click target, and clicking the floor near a dot (which lights up as you point) walks there. This also works in mirrored flats.
 - On portrait phones inside a room, the plan's tab covered the room pill's «Бүх өрөө» button. The room pill is now a two-line card (name, then size) with the button beside it, and the plan's tab and panel sit below it.
 - An open menu from the bottom navigation (such as the quality menu) opened underneath a flat's 3D / plan switch. It now opens above the switch, and in front of the phone sheet.
+- Picking an outdoor standing point during the first seconds of the opening push-in left the camera flying the overview shot; any new view now ends the push-in.
+- Entering a flat from the block or floor view stuttered while the camera glided in: its materials, the decor plants, the hotspot dots and (on the medium tier) the ambient occlusion compiled their shaders on the first frames inside. They are now compiled while the page is idle, and finished one idle moment at a time on browsers that compile shaders only on first use. The idle warm-up of the garage and lawn had been compiling for the screen rather than the effect composer's buffers, so its work was never reused; it now matches.
 
 ## 0.3.2
 

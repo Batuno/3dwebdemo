@@ -80,9 +80,11 @@ export default function UnitInterior({ def, st, storey }: { def: BlockDef; st: S
   useFrame(({ camera }) => {
     const n = sceneUniforms.uNight.value;
     const list = worldLights.current;
-    // From inside, the eye needs more fill than from the dollhouse view above
-    const boost = inside ? 0.5 : 1;
-    roomLights.uRoomFill.value.setRGB(0.3, 0.26, 0.2).multiplyScalar(inside ? 0.45 + n * 0.2 : 0.8);
+    // Seen from above, the rooms take their light from the open top as well, so the lamps stay softer inside.
+    const boost = inside ? 0.42 : 0.85;
+    // Warm, but not orange: the tone mapping keeps colours at full strength, so the bounce stays close to white.
+    // After dark it rises only a little, leaving the lamps to make pools of light rather than an even glow.
+    roomLights.uRoomFill.value.setRGB(0.3, 0.28, 0.25).multiplyScalar(inside ? 0.45 + n * 0.1 : 0.6);
     for (let i = 0; i < MAX_ROOM_LIGHTS; i++) {
       const l = list[i];
       if (l) {
@@ -113,7 +115,7 @@ export default function UnitInterior({ def, st, storey }: { def: BlockDef; st: S
       // Appendix A.7: warm in living rooms and bedrooms, neutral white in kitchens and bathrooms.
       const kelvin = layout.lights.find((q) => q.room === m.room && (q.kind === 'downlight' || q.kind === 'panel'))?.k ?? 3000;
       return {
-        color: new THREE.Color(kelvin >= 3800 ? '#ffe6cf' : '#ffc994'),
+        color: new THREE.Color(kelvin >= 3800 ? '#ffe6cf' : '#ffdab6'),
         pos: new THREE.Vector3(m.c[0], H - 0.3, m.c[1]).applyMatrix4(g.matrixWorld),
         base: living ? 11 : wet ? 5 : 7,
         rad: living ? 6.5 : wet ? 3.2 : 4.6,

@@ -46,6 +46,25 @@ export const westX1 = westX0 - STREET.sideWidth;
 /** The crosswalk over the main (east) road, in the foreground of the overview shot. */
 export const CROSSWALK_Z = 24;
 
+/**
+ * Parkland across the streets from the plot: east of the main road and south of the side street, which the
+ * opening and overview shots look across. Without it the site sits on bare shader ground. [x0, z0, x1, z1].
+ * The neighbouring buildings already keep out of these areas (see Context), so nothing stands on the lawn.
+ */
+const FAR_EDGE = STREET.sidewalk + 1;
+export const PARKS: [number, number, number, number][] = [
+  [eastX1 + FAR_EDGE, northZ0 + 1, 250, southZ0 - 1],
+  [-112, southZ1 + FAR_EDGE, 250, 97],
+  [eastX1 + FAR_EDGE, 97, 250, 190],
+];
+
+/** Footpaths through the parks, leading from the street corner and the crosswalk into the green. */
+export const PARK_PATHS: { points: Vec2[]; width: number }[] = [
+  { points: [[eastX1 + FAR_EDGE, southZ1 + FAR_EDGE + 1], [116, 90], [132, 99], [152, 101], [178, 96], [205, 102], [248, 112]], width: 3 },
+  { points: [[eastX1 + FAR_EDGE, CROSSWALK_Z], [120, 22], [140, 13], [165, 9], [200, 16], [248, 12]], width: 3.2 },
+  { points: [[-40, southZ1 + FAR_EDGE], [-30, 88], [-8, 92], [20, 89], [52, 93], [eastX1 + FAR_EDGE, 90]], width: 2.6 },
+];
+
 /** Smooth a coarse path through its control points. */
 export function smoothPath(points: Vec2[], step = 1.2): Vec2[] {
   const curve = new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(p[0], 0, p[1])));
@@ -221,6 +240,11 @@ function buildGround() {
       true,
     );
   }
+
+  // Parks across the streets, with their footpaths
+  const lawn = set.get('grass');
+  for (const [x0, z0, x1, z1] of PARKS) rect(lawn, x0, z0, x1, z1, 0.02);
+  for (const p of PARK_PATHS) pave.ribbon(smoothPath(p.points), p.width, 0.035);
 
   // Garden paths and the drop-off drive
   for (const p of site.paths) pave.ribbon(smoothPath(p.points), p.width, Y + 0.04);

@@ -36,6 +36,7 @@ Dev pages: `?debug=1` in a flat shows the measured plan with clearances, `#/dev/
 | `unreal` | Photoreal render pipeline, see [its README](./unreal/README.md) |
 | `reference` | Source drawings and the interior design PDF |
 | `docs` | Interior notes, Blender guide, review screenshots |
+| `vault` | Obsidian notes: current focus, session notes, decisions, ideas |
 
 ## Add a new project
 
@@ -67,6 +68,10 @@ Going back adds a new commit and keeps the history, so it is safe with both side
 **If both sides edit the same line:** sync does not stop. The side that syncs last wins that line, the earlier version is saved on a `backup/...` branch on GitHub, and the event is written to `.git/sync.log`. Edits to different lines, even in the same file, merge normally.
 
 Sync commits skip CI to save the free Actions minutes, and they are not tested first, so unfinished work can reach the other side. Commit by hand without `[skip ci]` to run the checks.
+
+## Project notes in Obsidian
+
+`vault/` is an Obsidian vault shared by the people on the project and by every Claude Code session, in the cloud and on the computers. In Obsidian, choose **Open folder as vault** and pick `vault`, not the whole repository. Auto-sync carries the notes like any other file. `CLAUDE.md` has each Claude session read `vault/Now.md` and the inbox first, and leave a note in `vault/Sessions` when it is done. To ask for something, put a note in `vault/Inbox`. Details are in [vault/How this vault works.md](./vault/How%20this%20vault%20works.md).
 
 ## Deploy
 

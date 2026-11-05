@@ -3,8 +3,10 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useKTX2 } from '@react-three/drei';
+import { useThree } from '@react-three/fiber';
 import { projectConfig } from '@bair/project-data';
 import { tiered } from './assetTier';
+import { useAppStore } from '../store/useAppStore';
 import { addWorldPos, assetUrl, basisPath, NOISE_GLSL, sceneUniforms } from './shared';
 
 type MapKind = 'color' | 'normal' | 'rough';
@@ -218,7 +220,16 @@ function buildLibrary(tex: THREE.Texture[], aniso: number) {
     }),
   };
 
-  const grass = std({ ...sets.grass, color: '#c3c9a2', roughness: 1 });
+  // Lawn has no shine: without the texture's roughness map, a softer normal and less sky in it, it stops
+  // glinting grey at eye level and stays green.
+  const grass = std({
+    map: sets.grass.map,
+    normalMap: sets.grass.normalMap,
+    normalScale: new THREE.Vector2(0.55, 0.55),
+    color: '#c3c9a2',
+    roughness: 1,
+    envMapIntensity: 0.55,
+  });
   patchMacro(grass, '#8d9a62', '#c8c98f', 0.035, 0.75);
   const asphalt = std({ ...sets.asphalt, color: '#a6a5a4', roughness: 0.95 });
   patchMacro(asphalt, '#8f8e8d', '#b5b3b0', 0.05, 0.5);
@@ -245,13 +256,22 @@ export type MaterialLibrary = ReturnType<typeof buildLibrary>;
 
 let cached: MaterialLibrary | null = null;
 
+/**
+ * Sharper floors, paths and roads where they run away from the eye. Computers get the GPU's best filtering
+ * (usually 16x); phones stay at 8x, where the extra texture reads would cost frame rate.
+ */
+function anisotropyFor(gl: THREE.WebGLRenderer): number {
+  return useAppStore.getState().quality === 'low' ? 8 : Math.max(8, Math.min(16, gl.capabilities.getMaxAnisotropy()));
+}
+
 /** Suspends until every site texture is transcoded; afterwards the same materials are shared. */
 export function useMaterials(): MaterialLibrary {
   const tex = useKTX2(siteUrls, basisPath()) as THREE.Texture[];
+  const gl = useThree((s) => s.gl);
   return useMemo(() => {
-    if (!cached) cached = buildLibrary(tex, 8);
+    if (!cached) cached = buildLibrary(tex, anisotropyFor(gl));
     return cached;
-  }, [tex]);
+  }, [tex, gl]);
 }
 
 let interiorCached: Record<InteriorSet, PbrSet> | null = null;
@@ -259,8 +279,9 @@ let interiorCached: Record<InteriorSet, PbrSet> | null = null;
 /** The texture sets used only inside flats. Suspends while they load; prefetched when the page is idle. */
 export function useInteriorSets(): Record<InteriorSet, PbrSet> {
   const tex = useKTX2(interiorUrls, basisPath()) as THREE.Texture[];
+  const gl = useThree((s) => s.gl);
   return useMemo(() => {
-    interiorCached ??= buildSets(INTERIOR_MAPS, tex, 8).sets;
+    interiorCached ??= buildSets(INTERIOR_MAPS, tex, anisotropyFor(gl)).sets;
     return interiorCached;
-  }, [tex]);
+  }, [tex, gl]);
 }

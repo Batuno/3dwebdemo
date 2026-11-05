@@ -149,6 +149,7 @@ export const mn = {
     options: 'Нэмэлт хэрэгслүүд',
     optionPartition: 'Гал тогооны шилэн хаалт',
     planLabels: 'Өрөөний нэр',
+    planEntrance: 'Орц',
     planPeople: 'Хүн харуулах',
     planDownload: 'Зураг татах',
     zoomIn: 'Томруулах',

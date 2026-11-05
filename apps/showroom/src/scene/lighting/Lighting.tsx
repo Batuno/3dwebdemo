@@ -105,8 +105,8 @@ const KEYS: SkyKey[] = [
   { alt: -6, zenith: '#101d42', horizon: '#3c4772', glow: '#3a2b4a', fog: '#30395a', sun: '#000000' },
   { alt: 0, zenith: '#27407a', horizon: '#e98d5a', glow: '#ff7a34', fog: '#a98a84', sun: '#ff8a4a' },
   { alt: 7, zenith: '#3f6cab', horizon: '#f6bb84', glow: '#ff9a50', fog: '#d6b8a0', sun: '#ffac6c' },
-  { alt: 22, zenith: '#4d86c8', horizon: '#e6dccb', glow: '#ffd9a8', fog: '#dcdad2', sun: '#ffe2bf' },
-  { alt: 50, zenith: '#4a86cf', horizon: '#cfdfea', glow: '#fff1da', fog: '#d3dde4', sun: '#fff0dc' },
+  { alt: 22, zenith: '#4d86c8', horizon: '#e6dccb', glow: '#ffd9a8', fog: '#d4d8d8', sun: '#ffe2bf' },
+  { alt: 50, zenith: '#4a86cf', horizon: '#cfdfea', glow: '#fff1da', fog: '#c8d6e1', sun: '#fff0dc' },
 ];
 
 const colorKeys = KEYS.map((k) => ({
@@ -162,6 +162,13 @@ function LateEnv({ url, onReady }: { url: string; onReady: (env: THREE.Texture) 
 const altitudeAt = (minutes: number) => sunAt(minutes, sunLocation, new Date()).altitude;
 /** The night image light takes over below this sun altitude, in degrees. */
 const NIGHT_ENV_BELOW = -4;
+
+// Daytime balance. The sun against the fill sets how far a shaded face drops below a lit one:
+// about 5:1 here, enough to read each wing's shape without the shaded side going dark.
+const SUN_DAY = 2.75;
+const FILL_DAY = 0.55;
+/** Sky image light by day: blue fill in the shade and reflections in glass and floors. */
+const SKY_DAY = 0.6;
 
 export function Lighting({ shadowSize, softShadows }: { shadowSize: number; softShadows: boolean }) {
   const { gl, scene } = useThree();
@@ -311,7 +318,7 @@ export function Lighting({ shadowSize, softShadows }: { shadowSize: number; soft
     const sun = sunRef.current;
     if (sun) {
       if (sunUp) {
-        sun.intensity = 2.3 * smooth(alt, -1, 9);
+        sun.intensity = SUN_DAY * smooth(alt, -1, 9);
         skyColor('sun', alt, sun.color);
       } else {
         sun.intensity = 0.2 * smooth(-alt, 2, 14);
@@ -320,8 +327,9 @@ export function Lighting({ shadowSize, softShadows }: { shadowSize: number; soft
     }
     const hemi = hemiRef.current;
     if (hemi) {
-      // By day, a strong neutral fill keeps walls their own colour when the sun moves off them.
-      hemi.intensity = THREE.MathUtils.lerp(0.09, 0.95, smooth(alt, -8, 18));
+      // By day, a neutral fill keeps walls their own colour when the sun moves off them, without
+      // lifting the shaded side so far that the towers lose their shape.
+      hemi.intensity = THREE.MathUtils.lerp(0.09, FILL_DAY, smooth(alt, -8, 18));
       hemi.color.copy(skyColor('zenith', alt, scratch)).lerp(DAY_FILL, smooth(alt, 0, 22));
       hemi.groundColor.copy(HEMI_GROUND);
       const inGarage = store.route.view === 'garage' ? 1 : 0;
@@ -348,7 +356,7 @@ export function Lighting({ shadowSize, softShadows }: { shadowSize: number; soft
     scene.environmentRotation.set(0, rotation, 0);
     scene.environmentIntensity = nowNightEnv
       ? 0.34 * smooth(-alt, 4, 12) + 0.03
-      : 0.42 * smooth(alt, -4, 20) + 0.05;
+      : SKY_DAY * smooth(alt, -4, 20) + 0.05;
 
     skyColor('zenith', alt, skyUniforms.uZenith.value);
     skyColor('horizon', alt, skyUniforms.uHorizon.value);

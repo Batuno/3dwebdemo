@@ -1,6 +1,10 @@
 import { create } from 'zustand';
 import { clampTime, parseTime, TIME_DEFAULT, TIME_MAX, TIME_MIN, type RenderManifest } from '@bair/project-data';
 import { parseHash, toHash, type Route } from '../lib/routing';
+import { withFrozenFrame } from '../scene/dissolve';
+
+/** Standing at a hotspot in a flat or at an outdoor point: the camera cuts there rather than gliding. */
+const isStanding = (r: Route): boolean => r.view === 'outdoor' || (r.view === 'unit' && !!r.spot);
 
 export type Quality = 'high' | 'medium' | 'low';
 export type ColorBy = 'type' | 'status';
@@ -140,9 +144,15 @@ const initialQuality = (): Quality => read<Quality | null>('bair.quality', null)
 export const useAppStore = create<AppState>((set, get) => ({
   route: parseHash(typeof location === 'undefined' ? '' : location.hash),
   navigate: (r) => {
-    const hash = toHash(r);
-    if (location.hash !== hash) location.hash = hash;
-    set({ route: r, planMode: r.view === 'unit' && !r.spot ? get().planMode : false, hover: { block: null, storey: null, stack: null } });
+    const apply = () => {
+      const hash = toHash(r);
+      if (location.hash !== hash) location.hash = hash;
+      set({ route: r, planMode: r.view === 'unit' && !r.spot ? get().planMode : false, hover: { block: null, storey: null, stack: null } });
+    };
+    // Into, out of or between standing points the camera jumps, so the view on screen is frozen first and
+    // dissolves into the new one. That waits one frame at most; every other move glides and goes at once.
+    if (isStanding(r) || isStanding(get().route)) withFrozenFrame(apply);
+    else apply();
   },
   syncFromHash: () => {
     const r = parseHash(location.hash);

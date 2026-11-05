@@ -10,6 +10,7 @@ import type { Route } from '../../lib/routing';
 import { getGroundCollider, getOccluders } from '../labels/occluders';
 import { povState } from '../unit/povState';
 import { farthestAllowed, MIN_CAMERA_Y, SITE_RADIUS } from './limits';
+import { playDissolve, takeFrozenFrame } from '../dissolve';
 
 export interface Shot {
   pos: [number, number, number];
@@ -333,6 +334,9 @@ export function CameraRig() {
     const store = useAppStore.getState();
     const pose = poseFor(route);
     const first = firstRun.current;
+    // Any new view ends the opening push-in. Left running, it would keep flying the overview shot over a
+    // standing point picked in its first seconds, and the viewer would never arrive there.
+    if (!first) intro.current = null;
     // Moving between hotspots, or in and out of one, happens behind a quick fade so the camera
     // never passes through a wall.
     const cover = !first && (pose !== null || wasInside.current);
@@ -368,8 +372,13 @@ export function CameraRig() {
       c.setLookAt(x, y, z, x + p.dir[0] * 0.05, y + p.dir[1] * 0.05, z + p.dir[2] * 0.05, false);
     };
 
+    // Moves into, out of and between standing points dissolve from a still of the old view when one was
+    // frozen (see dissolve); a move without one, such as the browser's back button, dips through black.
+    const still = cover ? takeFrozenFrame() : null;
+    const dissolved = !!still && playDissolve(still);
+
     if (pose) {
-      if (!cover) {
+      if (!cover || dissolved) {
         standAt(pose);
         return undefined;
       }
@@ -388,7 +397,7 @@ export function CameraRig() {
     c.mouseButtons.wheel = CameraControlsImpl.ACTION.DOLLY;
     c.touches.two = CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK;
     camera.far = 9000;
-    if (cover) {
+    if (cover && !dissolved) {
       store.setPovFade(true);
       setTimeout(() => store.setPovFade(false), POV_FADE_MS);
     }
