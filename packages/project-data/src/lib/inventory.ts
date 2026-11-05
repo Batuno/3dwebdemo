@@ -9,6 +9,7 @@ import {
   type UnitTypeId,
 } from '../data';
 import { statusFor, type UnitStatus } from './availability';
+import type { InventorySnapshot } from './crm';
 import { pricePerM2At, unitPrice } from './pricing';
 
 export interface Unit {
@@ -18,7 +19,10 @@ export interface Unit {
   stack: number;
   type: UnitTypeId;
   status: UnitStatus;
+  /** What the buyer pays now: the list price, or less during a sale. */
   price: number;
+  /** Price before any sale. Equal to `price` when nothing is discounted. */
+  listPrice: number;
   pricePerM2: number;
   totalArea: number;
   internalArea: number;
@@ -41,6 +45,7 @@ export const unitStoreys = (b: BlockDef): number[] =>
 function makeUnit(b: BlockDef, s: StackPlacement, storey: number): Unit {
   const t = unitTypes[s.type];
   const id = unitId(b.id, storey, s.stack);
+  const price = unitPrice(t.totalArea, storey, projectConfig.pricing);
   return {
     id,
     block: b.id,
@@ -48,7 +53,8 @@ function makeUnit(b: BlockDef, s: StackPlacement, storey: number): Unit {
     stack: s.stack,
     type: s.type,
     status: statusFor(id, projectConfig.availability),
-    price: unitPrice(t.totalArea, storey, projectConfig.pricing),
+    price,
+    listPrice: price,
     pricePerM2: pricePerM2At(storey, projectConfig.pricing),
     totalArea: t.totalArea,
     internalArea: t.internalArea,
@@ -100,6 +106,7 @@ export interface GarageBay {
   column: number;
   status: UnitStatus;
   price: number;
+  listPrice: number;
 }
 
 export const garageBays: GarageBay[] = Array.from({ length: garage.rows }, (_, row) =>
@@ -112,6 +119,38 @@ export const garageBays: GarageBay[] = Array.from({ length: garage.rows }, (_, r
       column,
       status: statusFor(`bay-${number}`, { ...projectConfig.availability, seed: garageSeed }),
       price: garage.bayPrice,
+      listPrice: garage.bayPrice,
     };
   }),
 ).flat();
+
+const bayById = new Map(garageBays.map((b) => [b.id, b]));
+export const getBay = (id: string): GarageBay | undefined => bayById.get(id);
+
+/* ---------- Live state from the sales team ---------- */
+
+/**
+ * Lays the API's statuses and prices over the generated ones, in place, so every existing reader sees them.
+ * Ids the snapshot does not mention keep their current state. Returns true when anything changed.
+ */
+export function applyInventory(snap: InventorySnapshot): boolean {
+  let changed = false;
+  for (const u of allUnits) {
+    const s = snap.units[u.id];
+    if (!s || (s.s === u.status && s.p === u.price && s.l === u.listPrice)) continue;
+    u.status = s.s;
+    u.price = s.p;
+    u.listPrice = s.l;
+    u.pricePerM2 = Math.round(s.p / u.totalArea);
+    changed = true;
+  }
+  for (const b of garageBays) {
+    const s = snap.bays[b.id];
+    if (!s || (s.s === b.status && s.p === b.price && s.l === b.listPrice)) continue;
+    b.status = s.s;
+    b.price = s.p;
+    b.listPrice = s.l;
+    changed = true;
+  }
+  return changed;
+}

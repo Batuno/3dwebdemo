@@ -1,10 +1,12 @@
 {
   "name": "3d-bair-songolt",
   "private": true,
-  "version": "0.3.3",
+  "version": "0.4.0",
   "type": "module",
   "packageManager": "pnpm@12.16.1",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node tools/start.mjs",
     "sync": "node tools/sync.mjs",
@@ -15,7 +17,15 @@
     "sync:install": "node tools/sync.mjs install",
     "dev": "pnpm --filter @bair/showroom dev",
     "dev:website": "pnpm --filter @bair/website dev",
+    "dev:api": "pnpm --filter @bair/api dev",
+    "dev:admin": "node tools/dev.mjs admin",
+    "dev:all": "node tools/dev.mjs all",
+    "demo:data": "pnpm --filter @bair/api demo",
     "build": "pnpm -r build && node tools/assemble-pages.mjs",
+    "build:online": "node tools/cloudflare.mjs build",
+    "start:server": "pnpm --filter @bair/api start",
+    "cf:setup": "node tools/cloudflare.mjs setup",
+    "cf:deploy": "node tools/cloudflare.mjs deploy",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",

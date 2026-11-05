@@ -5,6 +5,7 @@ import { blockById, garage, outdoorSpotById, projectConfig } from '@bair/project
 import { t } from '@bair/project-data';
 import { formatPrice, unitNumber } from '@bair/project-data';
 import { garageBays, countStatuses } from '@bair/project-data';
+import { trackAction } from '../lib/analytics';
 import { useAppStore } from '../store/useAppStore';
 import { Panel, primaryBtn, secondaryBtn, StatusBadge } from './common';
 import { FloorPanel } from './Panels';
@@ -44,8 +45,10 @@ function GaragePanel() {
   const setParking = useAppStore((s) => s.setParking);
   const setParkingFor = useAppStore((s) => s.setParkingFor);
   const navigate = useAppStore((s) => s.navigate);
-  const bay = useMemo(() => garageBays.find((b) => b.id === selected), [selected]);
-  const counts = useMemo(() => countStatuses(garageBays), []);
+  const tick = useAppStore((s) => s.inventoryTick);
+  // tick: live statuses and prices change the bays in place.
+  const bay = useMemo(() => garageBays.find((b) => b.id === selected), [selected, tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  const counts = useMemo(() => countStatuses(garageBays), [tick]); // eslint-disable-line react-hooks/exhaustive-deps
   const [block, storey, stack] = parkingFor ? parkingFor.split('-') : [];
   const back = () => {
     if (parkingFor) navigate({ view: 'unit', block, storey: Number(storey), stack: Number(stack) });
@@ -98,6 +101,7 @@ function GaragePanel() {
               disabled={bay.status !== 'available'}
               onClick={() => {
                 setParking(parkingFor, bay.id);
+                trackAction('parking');
                 setParkingFor(null);
                 select(null);
                 navigate({ view: 'unit', block, storey: Number(storey), stack: Number(stack) });

@@ -1,0 +1,23 @@
+// Cloudflare Workers + D1 on the free plan: the API, the admin panel, the showroom and the website on one address.
+// `pnpm cf:setup` creates the database and fills in database_id; `pnpm cf:deploy` builds and deploys.
+{
+  "name": "bair-songolt",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-10-01",
+  // Built by `pnpm cf:deploy`: website at /, showroom at /showroom/, admin at /admin/. Cloudflare serves these
+  // files itself, free and unmetered; only /api/ requests run the Worker.
+  "assets": {
+    "directory": "../../dist",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bair-songolt",
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ],
+  // Nightly upkeep at 03:23 Ulaanbaatar time (UTC+8): expired sessions, old visit rows, end of sales.
+  "triggers": { "crons": ["23 19 * * *"] }
+}

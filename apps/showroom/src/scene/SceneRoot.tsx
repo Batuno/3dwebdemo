@@ -69,12 +69,13 @@ function BlockInteraction({ def }: { def: BlockDef }) {
     return n >= 2 && n <= def.storeys ? n : null;
   };
 
+  const tick = useAppStore((s) => s.inventoryTick);
   const emptyFloor = useMemo(
     () =>
       hoverStorey && isThisBlockView
         ? unitsOnFloor(def.id, hoverStorey).every((u) => u.status !== 'available')
         : false,
-    [hoverStorey, isThisBlockView, def.id],
+    [hoverStorey, isThisBlockView, def.id, tick], // eslint-disable-line react-hooks/exhaustive-deps -- tick: live statuses
   );
 
   if (isOverview) {

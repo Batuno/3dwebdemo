@@ -14,7 +14,9 @@ export function FloorPanel({ block, storey }: { block: string; storey: number })
   const navigate = useAppStore((s) => s.navigate);
   const hoverStack = useAppStore((s) => s.hover.stack);
   const setHover = useAppStore((s) => s.setHover);
-  const units = useMemo(() => unitsOnFloor(block, storey), [block, storey]);
+  const tick = useAppStore((s) => s.inventoryTick);
+  // A new array on every live update, so the counts below follow too.
+  const units = useMemo(() => [...unitsOnFloor(block, storey)], [block, storey, tick]); // eslint-disable-line react-hooks/exhaustive-deps
   const c = useMemo(() => countStatuses(units), [units]);
   return (
     <Panel id="floor-units" initialOnPhone="collapsed" side="left" width="md:w-[320px]" title={t.floor.title(storey)}>
@@ -71,7 +73,10 @@ export function FloorPanel({ block, storey }: { block: string; storey: number })
                 <span className="font-bold whitespace-nowrap">{unitNumber(storey, u.stack)}</span>
                 <span className="truncate text-[var(--ink-soft)]">{t.unitType[u.type]}</span>
               </span>
-              <span className="font-semibold whitespace-nowrap">{formatPriceShort(u.price)}</span>
+              <span className="font-semibold whitespace-nowrap">
+                  {u.price < u.listPrice && <span className="sale-badge mr-1">%</span>}
+                  {formatPriceShort(u.price)}
+                </span>
             </button>
           </li>
         ))}

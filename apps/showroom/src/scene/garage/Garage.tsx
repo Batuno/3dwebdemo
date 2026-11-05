@@ -194,6 +194,7 @@ function Bays({ l, active }: { l: ReturnType<typeof layoutBays>; active: boolean
   const select = useAppStore((s) => s.setGarageSelection);
   const parking = useAppStore((s) => s.parking);
   const taken = useMemo(() => new Set(Object.values(parking)), [parking]);
+  const tick = useAppStore((s) => s.inventoryTick);
 
   const mesh = useMemo(() => {
     const g = new THREE.PlaneGeometry(garage.bayWidth - 0.14, garage.bayDepth - 0.1);
@@ -225,7 +226,7 @@ function Bays({ l, active }: { l: ReturnType<typeof layoutBays>; active: boolean
       mesh.setColorAt(i, c);
     });
     mesh.instanceColor!.needsUpdate = true;
-  }, [hover, selected, taken, l, mesh]);
+  }, [hover, selected, taken, l, mesh, tick]); // tick: live statuses change the bays in place
 
   useEffect(
     () => () => {

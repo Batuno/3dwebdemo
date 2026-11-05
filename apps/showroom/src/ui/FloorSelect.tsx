@@ -12,6 +12,7 @@ export function FloorSelect({ block }: { block: string }) {
   const hovered = useAppStore((s) => s.hover.storey);
   const navigate = useAppStore((s) => s.navigate);
   const storey = hovered ?? selected;
+  const tick = useAppStore((s) => s.inventoryTick);
 
   const rows = useMemo(() => {
     const units = unitsOnFloor(block, storey);
@@ -27,7 +28,8 @@ export function FloorSelect({ block }: { block: string }) {
         };
       })
       .filter((r) => r.count > 0);
-  }, [block, storey]);
+    // tick: live statuses and prices change the units in place.
+  }, [block, storey, tick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const step = (d: number) => setSelected(Math.min(def.storeys, Math.max(2, storey + d)));
 

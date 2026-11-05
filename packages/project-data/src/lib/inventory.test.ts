@@ -72,3 +72,39 @@ describe('inventory', () => {
     expect(garageBays.every((b) => b.price > 0)).toBe(true);
   });
 });
+
+describe('live inventory', () => {
+  it('lays statuses and sale prices over the generated ones and restores cleanly', async () => {
+    const { applyInventory, getBay } = await import('./inventory');
+    const { discountPercent } = await import('./crm');
+    const unit = getUnit('804A', 12, 325)!;
+    const bay = getBay('B1-001')!;
+    const before = { status: unit.status, price: unit.price, listPrice: unit.listPrice, perM2: unit.pricePerM2 };
+    const bayBefore = { s: bay.status, p: bay.price, l: bay.listPrice };
+    expect(unit.listPrice).toBe(unit.price);
+
+    const sale = Math.round(unit.listPrice * 0.9);
+    expect(
+      applyInventory({
+        units: { [unit.id]: { s: 'reserved', p: sale, l: unit.listPrice } },
+        bays: { [bay.id]: { s: 'sold', p: 30_000_000, l: 35_000_000 } },
+      }),
+    ).toBe(true);
+    expect(unit.status).toBe('reserved');
+    expect(unit.price).toBe(sale);
+    expect(unit.pricePerM2).toBe(Math.round(sale / unit.totalArea));
+    expect(discountPercent(unit.price, unit.listPrice)).toBe(10);
+    expect(bay.status).toBe('sold');
+    expect(fromPrice(unitsInBlock('804A'))).toBeLessThanOrEqual(sale);
+
+    // The same snapshot again changes nothing; ids it leaves out keep their state.
+    expect(applyInventory({ units: { [unit.id]: { s: 'reserved', p: sale, l: unit.listPrice } }, bays: {} })).toBe(false);
+
+    applyInventory({
+      units: { [unit.id]: { s: before.status, p: before.price, l: before.listPrice } },
+      bays: { [bay.id]: bayBefore },
+    });
+    expect(unit.pricePerM2).toBe(before.perM2);
+    expect(discountPercent(unit.price, unit.listPrice)).toBe(0);
+  });
+});

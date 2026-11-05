@@ -1,0 +1,236 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/manrope';
+
+/* Colours are tokens: components use them by role, and dark mode redefines them below. */
+:root {
+  color-scheme: light;
+  --bg: #f4f6f5;
+  --surface: #ffffff;
+  --surface-2: #f0f3f2;
+  --surface-3: #e5eae8;
+  --ink: #15191c;
+  --ink-2: #4f5a60;
+  --ink-3: #7c868b;
+  --line: rgba(21, 25, 28, 0.1);
+  --line-strong: rgba(21, 25, 28, 0.18);
+  --accent: #0f6b5c;
+  --accent-hover: #0c5a4d;
+  --accent-soft: #e2f1ed;
+  --accent-ink: #ffffff;
+  --danger: #b3261e;
+  --danger-soft: #fbe9e7;
+  --good-ink: #006300;
+  --warn-ink: #8a5a00;
+
+  /* Flat status: the same colours the showroom uses. */
+  --st-available: #2e9e5b;
+  --st-reserved: #e0a021;
+  --st-sold: #8f969c;
+
+  /* Lead stages, in pipeline order. Checked with the dataviz validator: neighbouring stages stay apart for
+     colour-blind readers in both themes. Always shown with the stage's name; "lost" is neutral on purpose. */
+  --ls-new: #2a78d6;
+  --ls-in_progress: #eb6834;
+  --ls-meeting: #6250d6;
+  --ls-order: #0ca30c;
+  --ls-lost: #8f969c;
+
+  /* Charts: categorical slots in the validated order (blue, orange, aqua). */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --heat-0: #f0f3f6;
+  --heat-1: #cde2fb;
+  --heat-2: #9ec5f4;
+  --heat-3: #6da7ec;
+  --heat-4: #3987e5;
+  --heat-5: #256abf;
+  --heat-6: #184f95;
+  --heat-7: #0d366b;
+  --shadow: 0 1px 2px rgba(16, 24, 22, 0.06), 0 8px 24px rgba(16, 24, 22, 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #0f1211;
+    --surface: #1a1d1c;
+    --surface-2: #222625;
+    --surface-3: #2c3130;
+    --ink: #eef1ef;
+    --ink-2: #b9c2bf;
+    --ink-3: #8b9592;
+    --line: rgba(255, 255, 255, 0.1);
+    --line-strong: rgba(255, 255, 255, 0.18);
+    --accent: #2fa38c;
+    --accent-hover: #3bb69d;
+    --accent-soft: #163a33;
+    --accent-ink: #06120f;
+    --danger: #f2817a;
+    --danger-soft: #3a1d1b;
+    --good-ink: #3fcf5b;
+    --warn-ink: #f0bf55;
+    --ls-new: #3987e5;
+    --ls-in_progress: #d95926;
+    --ls-meeting: #9085e9;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --heat-0: #1f2427;
+    --heat-1: #173055;
+    --heat-2: #184f95;
+    --heat-3: #1c5cab;
+    --heat-4: #2a78d6;
+    --heat-5: #5598e7;
+    --heat-6: #86b6ef;
+    --heat-7: #cde2fb;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3);
+  }
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0f1211;
+  --surface: #1a1d1c;
+  --surface-2: #222625;
+  --surface-3: #2c3130;
+  --ink: #eef1ef;
+  --ink-2: #b9c2bf;
+  --ink-3: #8b9592;
+  --line: rgba(255, 255, 255, 0.1);
+  --line-strong: rgba(255, 255, 255, 0.18);
+  --accent: #2fa38c;
+  --accent-hover: #3bb69d;
+  --accent-soft: #163a33;
+  --accent-ink: #06120f;
+  --danger: #f2817a;
+  --danger-soft: #3a1d1b;
+  --good-ink: #3fcf5b;
+  --warn-ink: #f0bf55;
+  --ls-new: #3987e5;
+  --ls-in_progress: #d95926;
+  --ls-meeting: #9085e9;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --heat-0: #1f2427;
+  --heat-1: #173055;
+  --heat-2: #184f95;
+  --heat-3: #1c5cab;
+  --heat-4: #2a78d6;
+  --heat-5: #5598e7;
+  --heat-6: #86b6ef;
+  --heat-7: #cde2fb;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Manrope Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.card {
+  /* Cards sit in grids; without this a wide table inside widens the whole page instead of scrolling. */
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+}
+
+.field {
+  width: 100%;
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0 12px;
+  font-size: 14px;
+  outline: none;
+  /* A select is as wide as its longest option unless told otherwise. */
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+.field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+textarea.field {
+  padding: 8px 12px;
+}
+
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex: none;
+}
+
+/* Flat grid cells: solid status fill, white or near-black text by the fill's lightness. */
+.cell-available {
+  background: var(--st-available);
+  color: #fff;
+}
+.cell-reserved {
+  background: var(--st-reserved);
+  color: #15191c;
+}
+.cell-sold {
+  background: var(--st-sold);
+  color: #fff;
+}
+
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.fade-in {
+  animation: fade-in 0.16s ease-out;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.drawer-in {
+  animation: drawer-in 0.2s ease-out;
+}
+@keyframes drawer-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-in,
+  .drawer-in {
+    animation: none;
+  }
+}

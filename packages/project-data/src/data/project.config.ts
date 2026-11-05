@@ -29,8 +29,16 @@ export const projectConfig = {
     reserved: 0.15,
     sold: 0.25,
   },
+  /**
+   * The admin panel's server (apps/api): leads, live statuses and prices, visit statistics. Set VITE_API_URL
+   * when building: "/" when the server also serves the sites, or its full address. Empty means no server:
+   * leads stay in the browser and statuses come from this file.
+   */
+  api: {
+    url: (import.meta.env?.VITE_API_URL as string | undefined) ?? '',
+  },
   leads: {
-    /** Set to your API to send leads to a backend. Empty = localStorage only. */
+    /** Another backend for leads, instead of the API above. Empty uses the API (or the browser only). */
     endpoint: '',
   },
   /** Drives the real sun position. Oak Ville @ AMK, editable per project. */

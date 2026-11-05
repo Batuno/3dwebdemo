@@ -11,13 +11,14 @@ export function FloorTicks({ block, current }: { block: string; current: number 
   const setHover = useAppStore((s) => s.setHover);
   const hovered = useAppStore((s) => s.hover.storey);
   const active = hovered ?? current;
+  const tick = useAppStore((s) => s.inventoryTick);
   const storeys = useMemo(() => {
     const out: { n: number; empty: boolean }[] = [];
     for (let n = 2; n <= def.storeys; n++) {
       out.push({ n, empty: countStatuses(unitsOnFloor(def.id, n)).available === 0 });
     }
     return out;
-  }, [def]);
+  }, [def, tick]); // eslint-disable-line react-hooks/exhaustive-deps -- live statuses change the units in place
   return (
     <div className="floor-ticks" role="group" aria-label={t.block.storey}>
       {storeys.map(({ n, empty }) => (

@@ -35,10 +35,11 @@ function BlockLabel({ def }: { def: BlockDef }) {
   const hovered = useAppStore((s) => s.hover.block === def.id);
   const navigate = useAppStore((s) => s.navigate);
   const setHover = useAppStore((s) => s.setHover);
+  const tick = useAppStore((s) => s.inventoryTick);
   const [c, from] = useMemo(() => {
     const u = unitsInBlock(def.id);
     return [countStatuses(u), fromPrice(u)];
-  }, [def.id]);
+  }, [def.id, tick]); // eslint-disable-line react-hooks/exhaustive-deps -- tick: live statuses change the units in place
   const data = getBuiltBlock(def);
   const y = roofY(def) + 13;
   const x = def.position[0] + data.liftCore.center[0];

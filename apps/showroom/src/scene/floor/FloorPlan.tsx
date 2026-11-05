@@ -98,6 +98,8 @@ function UnitPiece({
   ghost: boolean;
   detailed: boolean;
 }) {
+  // Live statuses change `unit` in place; this re-renders the piece when they do.
+  useAppStore((s) => s.inventoryTick);
   const colorBy = useAppStore((s) => s.colorBy);
   const hovered = useAppStore((s) => s.hover.stack === stackDef.stack);
   const setHover = useAppStore((s) => s.setHover);

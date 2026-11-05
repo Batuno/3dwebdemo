@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.4.0
+
+### Added
+
+- An admin panel at `/admin/` (`apps/admin`), in Mongolian, with sign-in and three roles: superadmin, admin and sales.
+- Dashboard: flats available, reserved and sold with their value, new leads and visitors against the week before, leads per day, the sales pipeline, each block's status split, sales per week, today's follow-ups, reservations about to run out, the latest leads and the most viewed flats.
+- Leads from the showroom and the website, and ones entered by hand for buyers who phone or walk in. Stages new, in progress, meeting, order and lost, in a filterable table or on a board where cards drag between stages. Each lead has a salesperson, a next-step date, a timeline of notes and changes, the path the buyer took through the showroom, other requests from the same number, and one button to reserve or sell their flat.
+- Flats on a floor-by-stack grid per block, coloured by status, by visitor interest or by type. Bulk status changes, sales by percentage until a date, ending sales and list-price moves for any selection (by flat, rectangle, floor or stack), and a page per flat with its reservation, linked lead, hand-set or sale price, note, history and leads. The same for the 272 parking bays.
+- Analytics: visitors per day, a heat map of interest per floor of each block, the most viewed flats, blocks, types, rooms and outdoor spots, devices, hours, actions, and the path from opening the showroom to sending a request. Every chart has a table view.
+- CSV and Excel exports of leads (with the current filters), flats, bays and analytics.
+- Users, base prices (price per m², floor premium, bay price), password change and an audit log of who changed or exported what.
+- The API behind it (`apps/api`), one code base that runs on Cloudflare's free plan (Worker and D1, `pnpm cf:setup` and `pnpm cf:deploy`, no credit card) or with Node and SQLite on a computer (`pnpm dev:admin`, `pnpm start:server`).
+- `pnpm demo:data` fills a local database with made-up buyers, sales and six weeks of visits.
+- `start.bat` and `start.sh` start the admin panel and its API with the showroom (`--no-admin` to skip them).
+
+### Changed
+
+- The showroom shows the statuses and prices set in the admin panel, refreshed every two minutes; a flat on sale shows its sale price, a «−8%» badge and the old price struck through.
+- The showroom sends its leads, with the visitor's path through the project, to the API, and anonymous visit statistics (none for browsers that ask not to be tracked). A lead that fails to send is kept and sent again on the next visit.
+- The website's contact form sends its requests to the API instead of only checking the number.
+
 ## 0.3.3
 
 ### Added

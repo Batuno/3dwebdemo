@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { PORTRAIT_PHONE, useMedia } from '@bair/ui';
 import { blockById, garage, interiors, mirroredInteriors, projectConfig, roomLabel, site, unitTypes } from '@bair/project-data';
 import { t } from '@bair/project-data';
-import { formatPrice, formatPriceShort, unitNumber } from '@bair/project-data';
+import { discountPercent, formatPrice, formatPriceShort, unitNumber } from '@bair/project-data';
 import { compassKey, facingDeg } from '@bair/project-data';
 import { getUnit, garageBays } from '@bair/project-data';
 import { useAppStore } from '../store/useAppStore';
@@ -12,6 +12,7 @@ import { LeadModal } from './LeadModal';
 import { TopViewModal } from './TopViewModal';
 import { PlanSwitch } from './PlanView';
 import type { LeadKind } from '../lib/leads';
+import { trackAction } from '../lib/analytics';
 
 function Compass({ deg }: { deg: number }) {
   return (
@@ -27,6 +28,8 @@ function Compass({ deg }: { deg: number }) {
 
 export function UnitPanel({ block, storey, stack, collapsed }: { block: string; storey: number; stack: number; collapsed?: boolean }) {
   const unit = getUnit(block, storey, stack)!;
+  // Live statuses and prices change `unit` in place; this re-renders the panel when they do.
+  useAppStore((s) => s.inventoryTick);
   const def = blockById(block)!;
   const st = def.stacks.find((s) => s.stack === stack)!;
   const type = unitTypes[unit.type];
@@ -44,11 +47,18 @@ export function UnitPanel({ block, storey, stack, collapsed }: { block: string; 
   const portrait = useMedia(PORTRAIT_PHONE);
 
   const number = unitNumber(storey, stack);
+  const at = { block, storey, stack };
+  const sale = discountPercent(unit.price, unit.listPrice);
+  const openLead = (kind: LeadKind) => {
+    trackAction('lead_open', { ...at, kind });
+    setLead(kind);
+  };
   const bay = parkingBay ? garageBays.find((b) => b.id === parkingBay) : undefined;
   const total = unit.price + (bay ? bay.price : 0);
   const facing = facingDeg(st, site.northOffsetDeg);
 
   const share = async () => {
+    trackAction('share', at);
     const url = location.href;
     try {
       await navigator.clipboard.writeText(url);
@@ -73,6 +83,7 @@ export function UnitPanel({ block, storey, stack, collapsed }: { block: string; 
             <span className="unit-peek__price">
               <span className="unit-peek__type">{t.unitType[unit.type]} · </span>
               {formatPriceShort(unit.price)}
+              {sale > 0 && <span className="sale-badge">{t.price.sale(sale)}</span>}
             </span>
           </span>
         }
@@ -85,22 +96,22 @@ export function UnitPanel({ block, storey, stack, collapsed }: { block: string; 
         footer={
           <div className="grid gap-2">
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" className={primaryBtn} onClick={() => setLead('viewing')} disabled={unit.status === 'sold'}>
+              <button type="button" className={primaryBtn} onClick={() => openLead('viewing')} disabled={unit.status === 'sold'}>
                 <IconCalendar />
                 {t.unit.book}
               </button>
-              <button type="button" className={secondaryBtn} onClick={() => setLead('info')}>
+              <button type="button" className={secondaryBtn} onClick={() => openLead('info')}>
                 <IconInfo />
                 {t.unit.info}
               </button>
             </div>
             {showContact ? (
               <div className="grid grid-cols-2 gap-2">
-                <a className={secondaryBtn} href={`tel:${projectConfig.contact.phone}`}>
+                <a className={secondaryBtn} href={`tel:${projectConfig.contact.phone}`} onClick={() => trackAction('call', at)}>
                   <IconPhone />
                   {projectConfig.contact.phoneLabel}
                 </a>
-                <a className={secondaryBtn} href={projectConfig.contact.messenger} target="_blank" rel="noreferrer">
+                <a className={secondaryBtn} href={projectConfig.contact.messenger} target="_blank" rel="noreferrer" onClick={() => trackAction('messenger', at)}>
                   <IconChat />
                   {t.unit.messenger}
                 </a>
@@ -118,7 +129,19 @@ export function UnitPanel({ block, storey, stack, collapsed }: { block: string; 
           <div className="text-[13px] font-semibold text-[var(--ink-soft)]">
             {t.nav.block(block)} · {t.unitType[unit.type]}
           </div>
-          <div className="mt-1 text-2xl font-extrabold tracking-tight">{formatPrice(unit.price)}</div>
+          <div className="mt-1 flex flex-wrap items-baseline gap-x-2 text-2xl font-extrabold tracking-tight">
+            {formatPrice(unit.price)}
+            {sale > 0 && (
+              <span className="sale-badge" aria-label={t.price.saleLabel(sale)}>
+                {t.price.sale(sale)}
+              </span>
+            )}
+          </div>
+          {sale > 0 && (
+            <div className="text-xs text-[var(--ink-soft)]">
+              {t.price.was}: <s>{formatPrice(unit.listPrice)}</s>
+            </div>
+          )}
           <div className="text-xs text-[var(--ink-soft)]">
             {t.price.perM2}: {formatPrice(unit.pricePerM2)}
           </div>
@@ -136,7 +159,10 @@ export function UnitPanel({ block, storey, stack, collapsed }: { block: string; 
             <IconShare />
             {t.unit.share}
           </button>
-          <button type="button" className={`${secondaryBtn} flex-col gap-0.5 px-1 py-1.5 text-[10.5px] leading-tight`} onClick={() => setShowPlan(true)}>
+          <button type="button" className={`${secondaryBtn} flex-col gap-0.5 px-1 py-1.5 text-[10.5px] leading-tight`} onClick={() => {
+              trackAction('plan', at);
+              setShowPlan(true);
+            }}>
             <IconPlan />
             {t.unit.plan}
           </button>
@@ -174,7 +200,7 @@ export function UnitPanel({ block, storey, stack, collapsed }: { block: string; 
 
         <section className="mb-3 rounded-2xl bg-black/[0.035] p-3">
           <h3 className="text-[13px] font-bold">{t.unit.parkingTitle}</h3>
-          <p className="mb-2 text-xs text-[var(--ink-soft)]">{formatPrice(garage.bayPrice)}</p>
+          <p className="mb-2 text-xs text-[var(--ink-soft)]">{formatPrice(bay ? bay.price : garage.bayPrice)}</p>
           {bay ? (
             <div className="flex items-center justify-between gap-2 text-[13px] font-semibold">
               <span>{t.unit.parkingChosen(bay.id)}</span>

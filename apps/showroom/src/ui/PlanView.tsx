@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { isPhone, PORTRAIT_PHONE, useMedia, usePanelOpen } from '@bair/ui';
 import { blockById, interiors, mirroredInteriors, t, unitNumber, unitTypes } from '@bair/project-data';
+import { trackAction } from '../lib/analytics';
 import { useAppStore } from '../store/useAppStore';
 import { IconMinus, IconPlus, IconReset } from './icons';
 import { PlanDrawing, planFrame } from './PlanDrawing';
@@ -45,7 +46,14 @@ export function PlanSwitch() {
       <button type="button" aria-pressed={!planMode} onClick={() => setPlanMode(false)}>
         {t.unit.view3d}
       </button>
-      <button type="button" aria-pressed={planMode} onClick={() => setPlanMode(true)}>
+      <button
+        type="button"
+        aria-pressed={planMode}
+        onClick={() => {
+          if (!planMode) trackAction('plan');
+          setPlanMode(true);
+        }}
+      >
         {t.unit.plan}
       </button>
     </div>

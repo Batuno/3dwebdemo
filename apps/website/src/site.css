@@ -75,3 +75,12 @@ input {
 .direct {
   margin-top: 20px;
 }
+
+/* The honeypot field: off screen for people, still in the form for bots. */
+.trap {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}

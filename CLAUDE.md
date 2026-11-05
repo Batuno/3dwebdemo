@@ -48,5 +48,7 @@ A question answered without changing anything needs no session note.
 - Run `pnpm test`, `pnpm typecheck` and `pnpm lint` before committing; CI runs the same three.
 - Commit subjects follow `feat(showroom): ...`, `fix(showroom): ...`. Commits made by `tools/sync.mjs` end in `[skip ci]`; do not add it to your own.
 - A user-visible change gets a line in `CHANGELOG.md` under the top version.
-- Interface text is Mongolian and lives in `packages/project-data/src/i18n/mn.ts`, not in components.
+- Interface text is Mongolian and lives in `packages/project-data/src/i18n/mn.ts` (the admin panel's in `i18n/admin.ts`), not in components.
+- The API (`apps/api`) must keep running free on Cloudflare (Workers + D1); see `vault/Decisions/` 0005 to 0008. Only `src/node/` may use Node APIs. A request makes at most 50 queries with at most 100 bound parameters (bulk writes pass rows as one JSON parameter to `json_each`), does no heavy CPU work (files are built in the admin, passwords stretched in the browser), and analytics stay daily counters. Check new endpoints in `wrangler dev` as well as `pnpm test`.
+- Never commit `data/` or any `.sqlite` file: they hold buyers' names and phone numbers.
 - Project data in `packages/project-data/src` drives everything. Furniture is never scaled to fit: a real conflict is recorded in `interiors/exceptions.ts`.

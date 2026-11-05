@@ -13,6 +13,8 @@ A buyer explores a residential project in the browser: picks a block, floor and 
 |---|---|
 | `apps/showroom` | The 3D app (React, three.js) |
 | `apps/website` | Placeholder marketing site |
+| `apps/admin` | Admin panel at `/admin/`: leads, flat grid, prices and sales, analytics, exports, users |
+| `apps/api` | The admin's API: Cloudflare Worker with D1 (free), or Node with SQLite on a computer |
 | `packages/project-data` | Project config, blocks, flat types, interiors, pricing, availability, Mongolian text (`src/i18n/mn.ts`) |
 | `packages/ui` | Shared glass panel |
 | `unreal` | Photoreal render pipeline |
@@ -36,4 +38,5 @@ Obsidian cannot open files outside this folder, so these open on GitHub:
 
 - Furniture is never scaled to fit. A real conflict is recorded in `packages/project-data/src/interiors/exceptions.ts`, and the tests fail on any new one.
 - Interface text comes from `packages/project-data/src/i18n/mn.ts`, not from the components.
-- Leads all go through `submitLead()` in `apps/showroom/src/lib/leads.ts`.
+- Leads all go through `submitLead()` in `apps/showroom/src/lib/leads.ts` (the website's form through `apps/website/src/App.tsx`) and reach the API when the build has `VITE_API_URL`.
+- The API stays inside Cloudflare's free plan: see [[0005 The admin API runs free on Cloudflare Workers and D1]].

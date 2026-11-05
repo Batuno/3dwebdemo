@@ -1,0 +1,24 @@
+{
+  "name": "@bair/api",
+  "private": true,
+  "version": "0.4.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false --disable-warning=ExperimentalWarning src/main.ts",
+    "start": "tsx --disable-warning=ExperimentalWarning src/main.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "user": "tsx --disable-warning=ExperimentalWarning src/cli.ts",
+    "demo": "tsx --disable-warning=ExperimentalWarning src/demo.ts"
+  },
+  "dependencies": {
+    "@bair/project-data": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}

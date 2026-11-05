@@ -25,9 +25,10 @@ export function BottomNav() {
   const [menu, setMenu] = useState<Menu>(null);
   const toggle = (m: Menu) => setMenu((cur) => (cur === m ? null : m));
 
+  const tick = useAppStore((s) => s.inventoryTick);
   const counts = useMemo(
     () => Object.fromEntries(blocks.map((b) => [b.id, countStatuses(unitsInBlock(b.id)).available])),
-    [],
+    [tick], // eslint-disable-line react-hooks/exhaustive-deps -- live statuses change the units in place
   );
 
   useEffect(() => {

@@ -1,5 +1,5 @@
 // One step from a fresh clone to the running app: fetches the 3D files, installs what is needed, starts everything.
-// Usage: node tools/start.mjs [--install-only] [--no-sync] [--no-open]
+// Usage: node tools/start.mjs [--install-only] [--no-sync] [--no-open] [--no-admin]
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -57,8 +57,17 @@ if (flags.has('--install-only')) process.exit(0);
 
 const children = [];
 if (!flags.has('--no-sync')) children.push(spawn(process.execPath, [path.join(ROOT, 'tools/sync.mjs'), 'watch'], { cwd: ROOT, stdio: 'inherit' }));
-console.log('\nStarting the showroom at http://localhost:5173 (press Ctrl+C to stop)\n');
-const dev = spawn(line('pnpm', ['dev', ...(flags.has('--no-open') ? [] : ['--open'])]), { cwd: ROOT, shell: true, stdio: 'inherit' });
+// The admin panel and its API run next to the showroom, which then sends its leads and statistics to it.
+// The database stays on this computer in data/ (not synced: it holds buyers' phone numbers).
+const admin = !flags.has('--no-admin');
+if (admin) {
+  for (const pkg of ['@bair/api', '@bair/admin']) children.push(spawn(line('pnpm', ['--filter', pkg, 'dev']), { cwd: ROOT, shell: true, stdio: 'inherit' }));
+}
+console.log('\nStarting the showroom at http://localhost:5173 (press Ctrl+C to stop)');
+if (admin) console.log('Admin panel at http://localhost:5175/admin/ (the first time, it asks for the setup code the API prints below)');
+console.log('');
+const env = admin ? { ...process.env, VITE_API_URL: 'http://localhost:8787' } : process.env;
+const dev = spawn(line('pnpm', ['dev', ...(flags.has('--no-open') ? [] : ['--open'])]), { cwd: ROOT, shell: true, stdio: 'inherit', env });
 dev.on('exit', (code) => {
   children.forEach((c) => c.kill());
   process.exit(code ?? 0);

@@ -76,6 +76,10 @@ interface AppState {
   toast: { text: string; tick: number } | null;
   showToast: (text: string) => void;
 
+  /** Bumped when live statuses or prices from the API change the units in place (lib/liveInventory.ts). */
+  inventoryTick: number;
+  bumpInventory: () => void;
+
   /** Set once the first frame is ready. */
   sceneReady: boolean;
   setSceneReady: () => void;
@@ -218,6 +222,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   toast: null,
   showToast: (text) => set({ toast: { text, tick: Date.now() } }),
+
+  inventoryTick: 0,
+  bumpInventory: () => set({ inventoryTick: get().inventoryTick + 1 }),
 
   sceneReady: false,
   setSceneReady: () => set({ sceneReady: true }),
