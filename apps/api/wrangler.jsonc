@@ -15,7 +15,7 @@
     {
       "binding": "DB",
       "database_name": "bair-songolt",
-      "database_id": "00000000-0000-0000-0000-000000000000"
+      "database_id": "cdc79959-a0a4-4edb-ae80-5061f8b4970e"
     }
   ],
   // Nightly upkeep at 03:23 Ulaanbaatar time (UTC+8): expired sessions, old visit rows, end of sales.
