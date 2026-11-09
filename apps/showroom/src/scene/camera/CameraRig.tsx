@@ -447,6 +447,9 @@ export function CameraRig() {
     } else {
       intro.current = null;
       moves.push(c.setLookAt(px, py, pz, tx, ty, tz, animate));
+      // Dragging adds up every turn the viewer made. Without this the glide unwinds all of them on the way
+      // back; with it the camera takes the short way round.
+      c.normalizeRotations();
     }
     if (glide) {
       void Promise.all(moves).then(() => {

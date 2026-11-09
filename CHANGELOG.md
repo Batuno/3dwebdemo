@@ -20,6 +20,14 @@
 - The showroom shows the statuses and prices set in the admin panel, refreshed every two minutes; a flat on sale shows its sale price, a «−8%» badge and the old price struck through.
 - The showroom sends its leads, with the visitor's path through the project, to the API, and anonymous visit statistics (none for browsers that ask not to be tracked). A lead that fails to send is kept and sent again on the next visit.
 - The website's contact form sends its requests to the API instead of only checking the number.
+- Admin flats page is simpler: one block at a time, whole-million prices with a line saying what the number means, room counts instead of type codes, and a bulk bar where discount and price change open on demand. The list view has one price column.
+- The admin flats page opens on a new floor-by-floor view («Давхраар»): the building's floors on the left as rows of coloured squares, and the chosen floor's real plan with every flat in its own shape, coloured available, reserved or sold, with cards for its number, type, area and price below. The grid is still there as «Бүх давхар».
+- New names: «Дасгалын цэг», «Коридоор», «Орох коридоор», «Нийтийн коридоор», «Хадгалах өрөө» in the showroom, and «Харилцагчдын тоо, 30 хоног» on the dashboard.
+
+### Fixed
+
+- Turning off «Олноор сонгох» in the admin now clears the selected flats.
+- Returning to the start in the showroom takes the short way round instead of unwinding every turn the viewer made.
 
 ## 0.3.3
 

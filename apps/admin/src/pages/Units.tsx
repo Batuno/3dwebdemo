@@ -1,7 +1,7 @@
-import { useMemo, useState, type CSSProperties, type MouseEvent } from 'react';
+import { useMemo, useState, type MouseEvent } from 'react';
 import { blocks, t, ta, unitNumber, unitTypeOrder, unitTypes, type BlockDef, type UnitStatus } from '@bair/project-data';
 import { useSession } from '../App';
-import { heatColor, heatInk, HeatLegend, heatStep } from '../charts/charts';
+import { HeatLegend } from '../charts/charts';
 import { ApiError, patch } from '../lib/api';
 import { unitsSheet } from '../lib/exports';
 import { millions, money, today } from '../lib/format';
@@ -11,13 +11,13 @@ import type { UnitsResponse, UnitView } from '../lib/types';
 import { useApi } from '../lib/useApi';
 import { ExportButtons } from '../ui/ExportButtons';
 import { Icon } from '../ui/icons';
-import { Badge, Button, ErrorBox, PageHeader, Segmented, Spinner, UnitStatusBadge, useToast } from '../ui/kit';
+import { Button, ErrorBox, PageHeader, Segmented, Spinner, UnitStatusBadge, useToast } from '../ui/kit';
+import { FloorView } from './units/FloorView';
+import { unitColors, type ColorBy } from './units/look';
 import { UnitDrawer } from './units/UnitDrawer';
 
 const U = ta.units;
-type ColorBy = 'status' | 'interest' | 'type';
 const STATUSES: UnitStatus[] = ['available', 'reserved', 'sold'];
-const shortType = (type: string) => type.replace('2RF_T', '2F');
 
 export default function Units() {
   const { parts } = useLocation();
@@ -25,7 +25,9 @@ export default function Units() {
   const toast = useToast();
   const { data, error, loading, reload } = useApi<UnitsResponse>('/api/units?days=30');
   const [colorBy, setColorBy] = useState<ColorBy>('status');
-  const [view, setView] = useState<'chess' | 'table'>('chess');
+  const [view, setView] = useState<'floors' | 'chess' | 'table'>('floors');
+  const [pickedBlock, setPickedBlock] = useState<string | null>(null);
+  const [pickedStorey, setPickedStorey] = useState<number | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [multi, setMulti] = useState(false);
   const [anchor, setAnchor] = useState<UnitView | null>(null);
@@ -35,6 +37,12 @@ export default function Units() {
   const byId = useMemo(() => new Map((data?.units ?? []).map((u) => [u.id, u])), [data]);
   const maxVisitors = useMemo(() => Math.max(1, ...Object.values(data?.interest ?? {}).map((i) => i.visitors)), [data]);
   const openId = parts[1] && byId.has(parts[1]) ? parts[1] : null;
+  // One block at a time. A link straight to a flat opens on that flat's block.
+  const blockId = pickedBlock ?? (openId ? byId.get(openId)!.block : blocks[0].id);
+  const blockDef = blocks.find((b) => b.id === blockId) ?? blocks[0];
+  const blockUnits = useMemo(() => (data?.units ?? []).filter((u) => u.block === blockDef.id), [data, blockDef]);
+  const topStorey = useMemo(() => Math.max(0, ...blockUnits.map((u) => u.storey)), [blockUnits]);
+  const storey = pickedStorey ?? (openId ? byId.get(openId)!.storey : topStorey);
 
   const toggle = (ids: string[], on?: boolean) =>
     setSelected((prev) => {
@@ -64,6 +72,17 @@ export default function Units() {
       return;
     }
     go(`units/${u.id}`);
+  };
+
+  const clearSelection = () => {
+    setSelected(new Set());
+    setAnchor(null);
+  };
+
+  /** Turning multi-select off leaves it completely, so nothing stays selected behind the button. */
+  const toggleMulti = () => {
+    if (multi) clearSelection();
+    setMulti(!multi);
   };
 
   const selectMany = (ids: string[]) => {
@@ -97,6 +116,7 @@ export default function Units() {
           value={view}
           onChange={setView}
           options={[
+            { value: 'floors', label: U.floors },
             { value: 'chess', label: U.chess },
             { value: 'table', label: U.table },
           ]}
@@ -105,49 +125,56 @@ export default function Units() {
       </PageHeader>
       <ErrorBox error={error} retry={reload} />
 
-      {view === 'chess' ? (
+      {view !== 'table' ? (
         <>
-          <div className="card mb-4 flex flex-wrap items-center gap-3 p-3">
-            <Segmented
-              label={U.colorBy}
-              value={colorBy}
-              onChange={setColorBy}
-              options={[
-                { value: 'status', label: U.byStatus },
-                { value: 'interest', label: U.byInterest },
-                { value: 'type', label: U.byType },
-              ]}
-            />
-            <Legend colorBy={colorBy} units={data.units} max={maxVisitors} />
-            {canEdit && (
-              <Button small tone={multi ? 'primary' : 'secondary'} aria-pressed={multi} onClick={() => setMulti(!multi)} className="ml-auto">
-                <Icon name="select" size={16} />
-                {U.multiSelect}
-              </Button>
-            )}
+          <div className="card mb-3 flex flex-wrap items-center gap-x-4 gap-y-3 p-3">
+            <Segmented label={U.block} value={blockDef.id} onChange={setPickedBlock} options={blocks.map((b) => ({ value: b.id, label: t.nav.block(b.id) }))} />
+            <Legend colorBy={colorBy} units={blockUnits} max={maxVisitors} />
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-2 text-[13px] font-semibold text-[var(--ink-2)]">
+                {U.colorBy}
+                <select className="field !min-h-8 !w-auto !py-0" value={colorBy} onChange={(e) => setColorBy(e.target.value as ColorBy)}>
+                  <option value="status">{U.byStatus}</option>
+                  <option value="interest">{U.byInterest}</option>
+                  <option value="type">{U.byType}</option>
+                </select>
+              </label>
+              {canEdit && (
+                <Button small tone={multi ? 'primary' : 'secondary'} aria-pressed={multi} onClick={toggleMulti}>
+                  <Icon name="select" size={16} />
+                  {U.multiSelect}
+                </Button>
+              )}
+            </div>
           </div>
-          {canEdit ? <p className="mb-3 text-xs text-[var(--ink-3)]">{U.selectHint}</p> : <p className="mb-3 text-xs text-[var(--ink-3)]">{U.readOnly}</p>}
-          <div className={`grid gap-4 2xl:grid-cols-2 ${loading ? 'opacity-60' : ''}`}>
-            {blocks.map((b) => (
-              <BlockGrid
-                key={b.id}
-                def={b}
-                units={data.units.filter((u) => u.block === b.id)}
+          <p className="mb-3 px-1 text-xs text-[var(--ink-2)]">
+            {!canEdit ? U.readOnly : view === 'floors' ? (multi ? U.floorSelectHint : U.floorHint) : multi ? U.selectHint : colorBy === 'status' ? U.cellHint : U.openHint}
+          </p>
+          <div className={loading ? 'opacity-60' : ''}>
+            {view === 'floors' ? (
+              <FloorView
+                def={blockDef}
+                units={blockUnits}
                 colorBy={colorBy}
                 interest={data.interest}
                 maxVisitors={maxVisitors}
                 selected={selected}
+                storey={storey}
+                onStorey={setPickedStorey}
+                canSelectAll={canEdit && multi}
                 onCell={onCell}
                 onMany={selectMany}
               />
-            ))}
+            ) : (
+              <BlockGrid def={blockDef} units={blockUnits} colorBy={colorBy} interest={data.interest} maxVisitors={maxVisitors} selected={selected} onCell={onCell} onMany={selectMany} />
+            )}
           </div>
         </>
       ) : (
         <UnitTable data={data} />
       )}
 
-      {canEdit && selected.size > 0 && <BulkBar units={[...selected].map((id) => byId.get(id)!).filter(Boolean)} busy={busy} onApply={apply} onClear={() => setSelected(new Set())} />}
+      {canEdit && selected.size > 0 && <BulkBar units={[...selected].map((id) => byId.get(id)!).filter(Boolean)} busy={busy} onApply={apply} onClear={clearSelection} />}
       {openId && <UnitDrawer id={openId} interest={data.interest[openId]} canEdit={canEdit} onClose={() => go('units')} onChanged={reload} />}
     </div>
   );
@@ -167,18 +194,18 @@ function Legend({ colorBy, units, max }: { colorBy: ColorBy; units: UnitView[]; 
       </ul>
     );
   return (
-    <ul className="flex flex-wrap gap-2 text-xs">
+    <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
       {STATUSES.map((s) => (
-        <li key={s}>
-          <Badge color={`var(--st-${s})`}>
-            {ta.unitStatus[s]} <b className="tnum">{units.filter((u) => u.status === s).length}</b>
-          </Badge>
+        <li key={s} className="flex items-center gap-1.5">
+          <span className="dot" style={{ background: `var(--st-${s})` }} />
+          {ta.unitStatus[s]} <b className="tnum">{units.filter((u) => u.status === s).length}</b>
         </li>
       ))}
-      <li>
-        <Badge color="var(--danger)">
-          % {U.onSale} <b className="tnum">{units.filter((u) => u.price < u.listPrice).length}</b>
-        </Badge>
+      <li className="flex items-center gap-1.5">
+        <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[var(--danger)] text-[9px] font-extrabold text-white" aria-hidden="true">
+          %
+        </span>
+        {U.onSale} <b className="tnum">{units.filter((u) => u.price < u.listPrice).length}</b>
       </li>
     </ul>
   );
@@ -206,18 +233,10 @@ function BlockGrid({
   const storeys = [...new Set(units.map((u) => u.storey))].sort((a, b) => b - a);
   const at = new Map(units.map((u) => [`${u.storey}-${u.stack}`, u]));
   const cols = def.stacks;
-  const counts = { available: 0, reserved: 0, sold: 0 };
-  for (const u of units) counts[u.status]++;
   return (
     <section className="card p-3" aria-label={t.nav.block(def.id)}>
-      <header className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1">
-        <h2 className="text-base font-extrabold">{t.nav.block(def.id)}</h2>
-        <span className="text-xs text-[var(--ink-2)]">
-          {STATUSES.map((s) => `${ta.unitStatus[s]} ${counts[s]}`).join(' · ')}
-        </span>
-      </header>
       <div className="scroll-x">
-        <table className="tnum border-separate border-spacing-[2px] text-[11px]">
+        <table className="tnum w-full border-separate border-spacing-[2px] text-xs">
           <thead>
             <tr>
               <th className="sticky left-0 z-10 bg-[var(--surface)]" />
@@ -225,12 +244,12 @@ function BlockGrid({
                 <th key={c.stack} className="p-0">
                   <button
                     type="button"
-                    title={U.selectColumn(c.stack)}
+                    title={`${U.selectColumn(c.stack)} · ${typeName(c.type)}`}
                     onClick={() => onMany(units.filter((u) => u.stack === c.stack).map((u) => u.id))}
                     className="w-full min-w-[50px] rounded-md px-1 py-1 font-bold text-[var(--ink-2)] hover:bg-[var(--surface-2)]"
                   >
                     {c.stack}
-                    <span className="block text-[10px] font-semibold text-[var(--ink-3)]">{shortType(c.type)}</span>
+                    <span className="block text-[10px] font-semibold text-[var(--ink-3)]">{U.typeShort[c.type]}</span>
                   </button>
                 </th>
               ))}
@@ -255,18 +274,9 @@ function BlockGrid({
                   const visitors = interest[u.id]?.visitors ?? 0;
                   const sale = u.price < u.listPrice;
                   const isSel = selected.has(u.id);
-                  let style: CSSProperties | undefined;
-                  let cls = '';
-                  let label: string = millions(u.price).replace(' сая', '');
-                  if (colorBy === 'status') cls = `cell-${u.status}`;
-                  else if (colorBy === 'interest') {
-                    const step = heatStep(visitors, maxVisitors);
-                    style = { background: heatColor(visitors, maxVisitors), color: heatInk(step) };
-                    label = String(visitors);
-                  } else {
-                    style = { background: unitTypes[u.type].color, color: '#15191c' };
-                    label = shortType(u.type);
-                  }
+                  const { fill, ink } = unitColors(u, colorBy, visitors, maxVisitors);
+                  const style = { background: fill, color: ink };
+                  const label = colorBy === 'status' ? String(Math.round(u.price / 1_000_000)) : colorBy === 'interest' ? String(visitors) : U.typeShort[u.type];
                   return (
                     <td key={c.stack} className="p-0">
                       <button
@@ -275,7 +285,7 @@ function BlockGrid({
                         aria-pressed={isSel}
                         aria-label={`${def.id} ${unitNumber(u.storey, u.stack)}, ${ta.unitStatus[u.status]}, ${money(u.price)}${sale ? `, ${U.onSale}` : ''}, ${U.visitorsShort(visitors)}`}
                         title={`${def.id} ${unitNumber(u.storey, u.stack)} · ${ta.unitStatus[u.status]} · ${money(u.price)}${sale ? ` (${U.onSale})` : ''} · ${U.visitorsShort(visitors)}`}
-                        className={`relative h-[30px] w-full min-w-[50px] rounded-[5px] px-1 font-semibold transition-[filter] hover:brightness-110 ${cls} ${isSel ? 'outline-[3px] outline-offset-[-3px] outline-[var(--ink)] outline-solid' : ''}`}
+                        className={`relative h-[30px] w-full min-w-[50px] rounded-[5px] px-1 font-semibold transition-[filter] hover:brightness-110 ${isSel ? 'outline-[3px] outline-offset-[-3px] outline-[var(--ink)] outline-solid' : ''}`}
                         style={style}
                       >
                         {label}
@@ -302,44 +312,29 @@ function BlockGrid({
   );
 }
 
-/** What can be done to every selected flat at once. */
+/** What can be done to every selected flat at once. Status is one click; discounts and price moves open on demand. */
 function BulkBar({ units, busy, onApply, onClear }: { units: UnitView[]; busy: boolean; onApply: (set: Record<string, unknown>) => void; onClear: () => void }) {
+  const [panel, setPanel] = useState<'discount' | 'price' | null>(null);
   const [pct, setPct] = useState('5');
   const [until, setUntil] = useState(today(30));
   const [change, setChange] = useState('3');
   const total = units.reduce((s, u) => s + u.listPrice, 0);
+  const panelButton = (which: 'discount' | 'price', label: string) => (
+    <Button small tone={panel === which ? 'primary' : 'secondary'} aria-expanded={panel === which} onClick={() => setPanel(panel === which ? null : which)}>
+      {label}
+    </Button>
+  );
   return (
     <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--line)] bg-[var(--surface)] shadow-[0_-8px_24px_rgba(0,0,0,0.08)] lg:left-60">
-      <div className="mx-auto flex max-w-[1400px] flex-wrap items-end gap-x-5 gap-y-3 px-4 py-3 sm:px-6">
-        <div className="min-w-[150px]">
-          <div className="text-sm font-extrabold">{U.selected(units.length)}</div>
-          <div className="text-xs text-[var(--ink-2)]">{U.listValue(millions(total))}</div>
-          <button type="button" onClick={onClear} className="mt-0.5 text-xs font-semibold text-[var(--accent)] hover:underline">
-            {U.clear}
-          </button>
-          {units.length === 1 && (
-            <a href={`#/units/${units[0].id}`} className="ml-3 text-xs font-semibold text-[var(--accent)] hover:underline">
-              {U.details}
-            </a>
-          )}
-        </div>
-        <div>
-          <div className="mb-1 text-xs font-semibold text-[var(--ink-2)]">{U.setStatus}</div>
-          <div className="flex gap-1.5">
-            {STATUSES.map((s) => (
-              <Button key={s} small disabled={busy} onClick={() => onApply({ status: s })}>
-                <span className="dot" style={{ background: `var(--st-${s})` }} />
-                {ta.unitStatus[s]}
-              </Button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <div className="mb-1 text-xs font-semibold text-[var(--ink-2)]">{U.discount}</div>
-          <div className="flex flex-wrap items-center gap-1.5">
+      <div className="mx-auto max-w-[1400px] px-4 py-3 sm:px-6">
+        {panel === 'discount' && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-[var(--line)] pb-3">
             <input className="field !min-h-8 !w-16 !px-2" type="number" min={1} max={90} value={pct} aria-label={U.discountPct} onChange={(e) => setPct(e.target.value)} />
             <span className="text-sm">%</span>
-            <input className="field !min-h-8 !w-auto !px-2" type="date" value={until} aria-label={U.saleUntil} title={U.saleUntil} onChange={(e) => setUntil(e.target.value)} />
+            <label className="flex items-center gap-2 text-xs font-semibold text-[var(--ink-2)]">
+              {U.saleUntil}
+              <input className="field !min-h-8 !w-auto !px-2" type="date" value={until} onChange={(e) => setUntil(e.target.value)} />
+            </label>
             <Button small tone="primary" disabled={busy || !(Number(pct) > 0)} onClick={() => onApply({ discountPct: Number(pct), saleUntil: until || null })}>
               <Icon name="tag" size={15} />
               {U.applyDiscount}
@@ -348,16 +343,43 @@ function BulkBar({ units, busy, onApply, onClear }: { units: UnitView[]; busy: b
               {U.clearSale}
             </Button>
           </div>
-        </div>
-        <div>
-          <div className="mb-1 text-xs font-semibold text-[var(--ink-2)]" title={U.priceChangeHint}>
-            {U.priceChange}
-          </div>
-          <div className="flex items-center gap-1.5">
+        )}
+        {panel === 'price' && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-[var(--line)] pb-3">
             <input className="field !min-h-8 !w-20 !px-2" type="number" min={-50} max={100} step={0.5} value={change} aria-label={U.priceChange} onChange={(e) => setChange(e.target.value)} />
-            <Button small disabled={busy || !Number(change)} onClick={() => onApply({ listPriceChangePct: Number(change) })}>
+            <span className="text-sm">%</span>
+            <Button small tone="primary" disabled={busy || !Number(change)} onClick={() => onApply({ listPriceChangePct: Number(change) })}>
               {U.applyPriceChange}
             </Button>
+            <span className="text-xs text-[var(--ink-2)]">{U.priceChangeHint}</span>
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <div>
+            <div className="text-sm font-extrabold">{U.selected(units.length)}</div>
+            <div className="text-xs text-[var(--ink-2)]">{U.listValue(millions(total))}</div>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {STATUSES.map((s) => (
+              <Button key={s} small disabled={busy} onClick={() => onApply({ status: s })}>
+                <span className="dot" style={{ background: `var(--st-${s})` }} />
+                {ta.unitStatus[s]}
+              </Button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {panelButton('discount', U.discount)}
+            {panelButton('price', U.applyPriceChange)}
+          </div>
+          <div className="flex items-center gap-3 sm:ml-auto">
+            {units.length === 1 && (
+              <a href={`#/units/${units[0].id}`} className="text-xs font-semibold text-[var(--accent)] hover:underline">
+                {U.details}
+              </a>
+            )}
+            <button type="button" onClick={onClear} className="text-xs font-semibold text-[var(--accent)] hover:underline">
+              {U.clear}
+            </button>
           </div>
         </div>
       </div>
@@ -405,7 +427,7 @@ function UnitTable({ data }: { data: UnitsResponse }) {
         <span className="ml-auto text-xs text-[var(--ink-2)]">{rows.length}</span>
       </div>
       <div className="card scroll-x">
-        <table className="tnum w-full min-w-[820px] text-left text-sm">
+        <table className="tnum w-full min-w-[680px] text-left text-sm">
           <thead>
             <tr className="border-b border-[var(--line)] text-xs text-[var(--ink-2)]">
               <th className="px-4 py-2.5 font-semibold">{U.stack}</th>
@@ -413,7 +435,6 @@ function UnitTable({ data }: { data: UnitsResponse }) {
               <th className="px-2 py-2.5 text-right font-semibold">{U.area}</th>
               <th className="px-2 py-2.5 font-semibold">{U.status}</th>
               <th className="px-2 py-2.5 text-right font-semibold">{U.price}</th>
-              <th className="px-2 py-2.5 text-right font-semibold">{U.listPrice}</th>
               <th className="px-2 py-2.5 text-right font-semibold">{U.visitors30}</th>
               <th className="px-4 py-2.5 text-right font-semibold">{ta.nav.leads}</th>
             </tr>
@@ -433,7 +454,6 @@ function UnitTable({ data }: { data: UnitsResponse }) {
                   {money(u.price)}
                   {u.price < u.listPrice && <span className="ml-1 text-xs font-bold text-[var(--danger)]">−{Math.round((1 - u.price / u.listPrice) * 100)}%</span>}
                 </td>
-                <td className="px-2 py-2 text-right whitespace-nowrap text-[var(--ink-2)]">{money(u.listPrice)}</td>
                 <td className="px-2 py-2 text-right">{data.interest[u.id]?.visitors ?? 0}</td>
                 <td className="px-4 py-2 text-right">{data.leadCounts[u.id] ?? 0}</td>
               </tr>

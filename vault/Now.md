@@ -30,6 +30,7 @@ Every Claude Code session reads this note first, so keep it short and current. E
 
 ## Recent sessions
 
+- [[2026-11-05 Renames simpler flats page and camera short way]]
 - [[2026-11-05 Admin panel and free API]]
 - [[2026-11-04 Lighting plan park dissolve and stutter]]
 - [[2026-11-04 Obsidian vault setup]]

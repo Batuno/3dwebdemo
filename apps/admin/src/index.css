@@ -204,6 +204,20 @@ textarea.field {
   color: #fff;
 }
 
+/* A flat on the floor plan drawing. */
+.plan-unit {
+  cursor: pointer;
+  outline: none;
+  transition: filter 0.12s;
+}
+.plan-unit:hover {
+  filter: brightness(1.12);
+}
+.plan-unit:focus-visible polygon {
+  stroke: var(--ink);
+  stroke-width: 0.3;
+}
+
 .scroll-x {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
